@@ -6,6 +6,10 @@ framework. It is a Claude Code plugin, installed into every other project repo.
 ## First five minutes
 
 ```bash
+# 0. Restore executable bits — zip does not preserve them, and a hook that is
+#    not executable fails SILENTLY. Run this first, always.
+bash bootstrap.sh
+
 # 1. Confirm the history came through
 git log --oneline
 
