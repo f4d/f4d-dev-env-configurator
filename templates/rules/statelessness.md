@@ -1,0 +1,63 @@
+# Statelessness
+
+The premise: **any instance can serve any request, and any instance can die at any
+moment without losing anything that mattered.**
+
+This failure class is structurally invisible. Local dev runs one instance, tests
+run one instance, CI runs one instance — and the first multi-instance environment
+is production. Statefulness bugs therefore present as intermittent flakiness
+rather than as defects, and survive review because the code is correct in
+isolation.
+
+## The contract
+
+- No request handler may depend on having seen a previous request.
+- Any instance may be killed between any two requests. Nothing that mattered is lost.
+- Restarting the process loses **nothing** except performance.
+
+## Where state must live
+
+| State | Never | Always |
+|---|---|---|
+| Session / auth | Server memory | Signed token, or a shared session store |
+| Cache | Module-level dict | Redis, or accept per-instance and make it provably safe to diverge |
+| Rate limits | In-process counter | Shared store. N instances otherwise means N× the limit. |
+| Locks | `threading.Lock`, in-process mutex | Advisory DB lock or a distributed lock with a TTL |
+| Uploads in progress | Local disk | Object storage, direct via presigned URL |
+| Temp/derived files | Local disk between requests | Object storage, or within one request only |
+| Background jobs | A thread in the web process | A queue with a durable backend |
+| Schedules / cron | In-process scheduler | External scheduler, or leader election. N instances otherwise fire N times. |
+| Long-operation progress | Memory | A row, keyed and readable by any instance |
+| WebSocket / SSE state | Instance-local only | A shared pub/sub, or accept and handle reconnect-to-a-different-instance |
+
+## Rules
+
+- **Module-level mutable state is a defect** unless it is provably immutable after
+  import. A dict that gets written to at runtime is per-instance state pretending
+  to be a cache.
+- **Migrations never run at boot.** Instances race; one wins and the rest crash or,
+  worse, half-apply. Migrations run as a separate step in the deploy.
+- **Every write path is idempotent** or carries an idempotency key. A retry, a
+  duplicate webhook, or a request that landed on a second instance must not
+  double-apply.
+- **Sticky sessions are a workaround, not a design.** If the system requires them,
+  say so explicitly and name what would be needed to remove them.
+- **Readiness is not liveness.** `/readyz` reports whether dependencies are
+  reachable from *this* instance. `/healthz` reports the process is alive. A load
+  balancer needs both to mean different things.
+- **Graceful shutdown is required.** On SIGTERM: stop accepting, finish in-flight,
+  release locks, exit. An instance that dies mid-request must not leave a lock held.
+- **Nothing on the local filesystem outlives a request.** Assume the disk is
+  ephemeral, because on Render, Fly, Cloud Run, and every serverless target, it is.
+- **A cache miss must be correct, never just slower.** If behavior differs on a cold
+  instance, the cache is load-bearing state.
+
+## Prove it, do not assume it
+
+- **Local dev runs two instances.** This is the whole game. One instance makes every
+  statefulness bug invisible until production.
+- At least one integration test exercises a flow across two instances: write on A,
+  read on B.
+- A restart test: kill the process mid-flow, confirm nothing was lost.
+- If any of the above is impractical, **name what would catch the problem instead**.
+  Silence reads as "stateless."

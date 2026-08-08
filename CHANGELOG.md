@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.9.0 — statelessness
+A failure class the framework had no coverage for: state that works on one instance and fails intermittently on two. Structurally invisible, because local dev, tests, and CI are all single-instance — the first multi-instance environment is production.
+
+**Interview** — Round 1 gains *"Will this ever run more than one instance?"* (`yes` / `no` / `serverless`; autoscale and serverless are both yes). A `yes` includes the module, switches the local stack to two instances, and ships the cross-instance tests — not asked about separately, that is what yes means. A `no` gets ADR 002 recording the choice and its reversal cost. Round 3 adds two follow-ups: what survives between requests (walk the list, don't accept "nothing"), and where long-running progress lives if the instance dies.
+
+**`templates/rules/statelessness.md`** — the contract (any instance serves any request; any instance may die between requests), a where-state-must-live table covering sessions, caches, rate limits, locks, uploads, temp files, jobs, schedules, progress, and websockets, and the rules that follow.
+
+**`scripts/check_statelessness.py`** — gate for ST-01..ST-07: module-level mutable collections, in-process locks, in-process schedulers, local-disk writes, migrations at boot, in-memory sessions, in-process rate limiters. Line-level `stateless-ok` annotation for genuine exceptions. Proved red on five planted violations, green when clean, and fixed so it no longer matches its own pattern table.
+
+**`templates/scaffold/docker-compose.multi.yml.tmpl`** — the environment fix, and the most important part of this release. Two app instances behind nginx round-robin, redis for shared state, and migrations as a **separate** service so instances never race at boot. Now the default local stack for any multi-instance project; single-instance requires a recorded decision.
+
+**`templates/tests/statelessness_test.py`** — cross-instance write-then-read, session survives an instance switch, rate limit is shared across instances, idempotent write through the load balancer, and a restart-loses-nothing test.
+
+**Registry** — 14 new ST-* rules. Seven are gated, one is scaffold-enforced, one is tested; the rest carry project-conditional promote-when triggers.
+
+**Also** — Definition of Done gained a Statelessness section, `/project-audit` checks whether the local stack is single-instance (if it is, every ST-* bug in that repo is currently invisible), and the org profile gained `multi_instance` and `shared_store` defaults.
+
 ## 1.8.0 — document everything, enforce what's ready, track the rest
 Answers "can't we just document them now and figure out enforcement later?" — yes, provided the gap is tracked rather than forgotten.
 

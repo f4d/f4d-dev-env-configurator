@@ -61,6 +61,13 @@ checks below — they are available immediately.
 - Production traffic but no `livesystem.md`?
 - Conversely: any module present for something the repo does not do? Remove it — dead rules cost context on every turn.
 
+**Statelessness** — only meaningful for multi-instance projects; check first whether it is one
+- Run `python3 .github/scripts/check_statelessness.py`
+- Does the local stack run **two** instances? If it runs one, every ST-* bug in this repo is currently invisible and no amount of testing will surface it.
+- Do migrations run at app boot? That is a deploy-time race, not a startup convenience.
+- Is there at least one test that writes on one instance and reads on another?
+- Any `stateless-ok` annotation without a reason after it
+
 **Code-level spot checks**
 - Any test that calls a live external API
 - Any `float` in a currency path

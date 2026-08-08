@@ -127,6 +127,28 @@ The failure class that survives review. Highest-value column in this file.
 | T-03 | Hash path changes get a new version, never an edited fixture | GATE | PROSE | fixture-immutability check |
 | T-04 | No timestamps, uuids, paths, or floats inside a hashed payload | TEST | PROSE | project hashes — then required |
 
+## Statelessness
+
+Works on one instance, fails intermittently on two. Structurally invisible
+because every environment before production is single-instance.
+
+| ID | Rule | Should be | Today | Promote when |
+|---|---|---|---|---|
+| ST-01 | No module-level mutable state (cache, store, registry) | GATE | **GATE** (`check_statelessness`) | done |
+| ST-02 | No in-process lock where two instances could both enter | GATE | **GATE** | done |
+| ST-03 | No in-process scheduler — external, or leader election | GATE | **GATE** | done |
+| ST-04 | Nothing on local disk outlives a request | GATE | **GATE** | done |
+| ST-05 | Migrations never run at app boot | GATE | **GATE** | done |
+| ST-06 | Sessions in a signed token or a shared store, never memory | GATE | **GATE** | done |
+| ST-07 | Rate limits in a shared store — N instances must not mean N× the limit | GATE | **GATE** | done |
+| ST-08 | Local dev runs two instances by default | JUDGMENT | **SCAFFOLD** (`docker-compose.multi.yml`) | done |
+| ST-09 | A cross-instance test exists: write on A, read on B | TEST | **TEST** (`statelessness_test.py`) | done |
+| ST-10 | Graceful shutdown — stop accepting, finish in flight, release locks | TEST | PROSE | project runs >1 instance — then required |
+| ST-11 | `/healthz` and `/readyz` mean different things | TEST | PROSE | project is behind a load balancer |
+| ST-12 | Every write path idempotent or carries an idempotency key | TEST | PROSE | project has retries or webhooks |
+| ST-13 | A cache miss is correct, never merely slower | JUDGMENT | PROSE | — |
+| ST-14 | Sticky sessions are a declared workaround, never a design | JUDGMENT | PROSE | — |
+
 ## Operations
 
 | ID | Rule | Should be | Today | Promote when |

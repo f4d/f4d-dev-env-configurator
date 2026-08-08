@@ -31,6 +31,8 @@ stack_defaults:
   hosting:           # render | cloudflare | vercel | aws | other
   storage:           # r2 | s3 | none      <- default only; still confirmed per project
   ci:                # github-actions
+  multi_instance:    # yes | no | serverless  — default for new projects here
+  shared_store:      # redis | postgres-only | none  — where cross-instance state lives
 
 automation:
   claude_github_app: # installed | not-installed

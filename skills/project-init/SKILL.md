@@ -62,6 +62,19 @@ Carry into every later step: the company's `constraints` block goes into `.claud
 2. **Primary language for the backend?** — `python` / `typescript` / `both` / `other`
 3. **Is there a user-facing frontend?** — `none, API only` / `SSR web app` / `SPA` / `admin UI only`
 4. **Database?** — `postgres` / `sqlite` / `mongo` / `none yet` / `other`
+5. **Will this ever run more than one instance?** — `yes` / `no` / `serverless`
+
+   Ask it plainly; it decides more than any other question in Round 1. Autoscale,
+   multiple containers, and serverless are all **yes** — serverless most of all,
+   since every request may hit a cold instance.
+
+   If `yes` or `serverless`, the `statelessness` module is included, the local
+   stack is the **two-instance** compose file, and the cross-instance tests ship
+   with the scaffold. Do not ask whether they want this; it is what `yes` means.
+
+   If `no`: ask *"what would have to change for that to become yes?"* and record
+   the answer. Single-instance is a legitimate choice, but it should be a decision
+   with a stated reversal cost, not an assumption. Write ADR 002 for it.
 
 ### Round 2 — Integration surface (always ask)
 
@@ -78,6 +91,8 @@ Only ask what applies, based on Rounds 1–2. Each YES pulls in a rules module a
 |---|---|---|
 | Any file input/output mentioned | **Does this project store or serve user files? If so, where — S3/R2, local disk, DB blobs?** | `storage` |
 | Storage = yes | **Do files need content-addressing, dedupe, or reproducible hashes?** | `determinism` |
+| Multi-instance = yes | **What has to survive between requests — sessions, caches, rate limits, uploads in progress, background jobs, schedules, locks?** Go through the list; do not accept "nothing" without walking it. | shared-store services in the local stack |
+| Multi-instance = yes | **Anything long-running — jobs, imports, pipelines?** If so, where does progress live, and what happens if the instance running it dies? | queue + durable progress |
 | Money, pricing, invoices, splits, payouts mentioned | **Does this project compute or move money?** | `money` |
 | Chain, wallet, mint, token, contract mentioned | **Any blockchain or smart-contract component? Which chains?** | `blockchain` + `keysafety` |
 | Multiple sources in Q5 | **Do you need to reconcile or merge data across those sources into one canonical record?** | `data-integration` |
@@ -122,7 +137,9 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Write in 
 4. `.claude/rules/*.md` — copy only the selected modules from `${CLAUDE_PLUGIN_ROOT}/templates/rules/`, **plus `REGISTRY.md` always**. Then prune the registry to the rules this project actually holds, and set each row's `Today` column to what genuinely enforces it here. A registry asserting checks that do not exist is worse than none.
 5. `.claude/settings.json` — hooks wired, **including `SessionStart`**. This is not optional: without it, a session started in any subdirectory never loads the repo-root instruction files at all. See `templates/process/ENFORCEMENT.md`.
 6. `.claude/agents/*.md` — only the selected agents
-7. `docker-compose.yml` + `scripts/dev-reset.sh`
+7. Local stack + `scripts/dev-reset.sh`:
+   - Multi-instance project → `docker-compose.multi.yml` (two app instances, nginx round-robin, redis, and a **separate migrate step**) plus `scripts/nginx-lb.conf`. **This is the default.** One instance locally makes every statefulness bug invisible until production.
+   - Single-instance project → `docker-compose.yml`, and ADR 002 recording that choice with its reversal cost.
 8. `verify` script in `package.json` and/or `Makefile`
 9. `.github/workflows/` — `verify.yml` running the same command, plus `claude.yml`, `claude-code-review.yml`, and `notion-sync.yml` from `${CLAUDE_PLUGIN_ROOT}/templates/github/` if the org profile has `claude_github_app: installed` and `notion_work_db` set. Copy `scripts/notion_sync.py` to `.github/scripts/`.
    Also write `.github/ISSUE_TEMPLATE/bug.yml` and `feature.yml` — structured enough that `@claude` can act on a report directly.

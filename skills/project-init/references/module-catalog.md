@@ -23,6 +23,7 @@ Each module is a single file copied into `.claude/rules/`. Include only what the
 | `guards` | **always** | — | Red-then-green, guard hygiene, where a rule belongs |
 | `silent-degradation` | **always** | — | No degrade-to-default, catch→[] trap, guess lists, hardcode boundary, raw ids |
 | `capability-parity` | if UI + API must agree | Q3+Q5 | Consumer enumeration, UI-as-proof, row-vs-call failure, preview/execute parity |
+| `statelessness` | if >1 instance, ever | Q5 | No module-level state, no in-process locks/schedulers/limiters, nothing on local disk, migrations not at boot, two-instance local stack, cross-instance tests |
 | `observability` | recommend if any of the above | — | Structured logs, correlation IDs, no payload logging, health endpoints |
 
 ## Sizing guidance
@@ -31,4 +32,5 @@ Each module is a single file copied into `.claude/rules/`. Include only what the
 - **`guards` and `silent-degradation` are not optional.** They are the two modules that address the failure class which survives review — output that looks plausible while being wrong. Every project gets them.
 - **Add storage only when asked for.** Most projects touch files; few need a storage *policy*. The policy is worth it when files are user-supplied, large, or served publicly.
 - **`determinism` without `storage` is almost never right.** `storage` without `determinism` is common and fine.
+- **`statelessness` is decided by deployment, not by preference.** If the project will ever run two instances, it is required — and the local stack changes with it. Retrofitting statelessness after the first production incident is far more expensive than starting with a two-instance compose file.
 - If a project needs more than ten modules, it is probably two projects.

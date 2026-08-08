@@ -46,6 +46,14 @@ If a spec passes this without a single question raised, it is usually underspeci
 - [ ] Preview and execute produce the same request set
 - [ ] No new value, type, or shape degrades to a default; unknowns fail a check or render blocked
 
+## Statelessness — when the project runs more than one instance
+
+- [ ] No new module-level mutable state, in-process lock, scheduler, or rate limiter
+- [ ] Nothing written to local disk survives the request that wrote it
+- [ ] Any new write path is idempotent, or carries an idempotency key
+- [ ] Tested against the **two-instance** stack, not a single instance
+- [ ] If the change adds cross-request state, a cross-instance test covers it: write on A, read on B
+
 ## The escape hatch
 
 You may ship without meeting the Definition of Done exactly once per incident, and only for an incident. When you do, open the follow-up issue in the same hour, linked from the PR. An unpaid exception becomes a permanent lowering of the bar.

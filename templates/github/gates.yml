@@ -53,6 +53,15 @@ jobs:
           BASE_REF: origin/${{ github.base_ref }}
           PR_BODY: ${{ github.event.pull_request.body }}
 
+  statelessness:
+    name: "ST-01..ST-07 — no per-instance state"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python .github/scripts/check_statelessness.py
+
   hooks:
     name: "G-02 G-03 — hooks fire, and fail loud"
     runs-on: ubuntu-latest
