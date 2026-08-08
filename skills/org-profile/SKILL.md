@@ -48,14 +48,19 @@ Ask these together, not one at a time. Most have obvious defaults you should pro
 9. Auto PR review on every PR, off, or selective? Issue-to-PR via `@claude` on or off?
 10. Any spend ceiling worth recording?
 
+**Work tracking**
+11. **Where does this company's work get tracked?** — `hub` (the central Work DB, default) | `hub+local` (mirrored to this company's workspace) | `local` (this company's workspace only)
+
+    Propose `hub`. Only move off it when someone outside the hub workspace needs visibility, or contractual isolation demands it. Each alternative adds a sync target you own.
+
 **Business**
-11. This company's Notion workspace URL?
-12. Do clients or outside stakeholders see status, and where do they look?
+12. This company's Notion workspace URL?
+13. Do clients or outside stakeholders see status, and where do they look?
 
 **Constraints** — the highest-value question in the interview
-13. *"What makes work at this company different from your others? Anything live, anything a client owns, anything an agent must never touch?"*
+14. *"What makes work at this company different from your others? Anything live, anything a client owns, anything an agent must never touch?"*
 
-Push on 13 if the answer is thin. This is where "the GHL instance is live," "the client owns the repo," and "everything must map to a billable item" come from — the facts that would otherwise be learned by breaking something.
+Push on 14 if the answer is thin. This is where "the GHL instance is live," "the client owns the repo," and "everything must map to a billable item" come from — the facts that would otherwise be learned by breaking something.
 
 ## Write
 

@@ -39,6 +39,12 @@ automation:
   issue_to_pr:       # on | off        (@claude in an issue opens a PR)
   budget_note:       # free text — spend ceiling or "watch usage"
 
+work_tracking:
+  hub_mode:          # hub | hub+local | local   — default hub
+  hub_workspace:     # URL of the hub workspace holding the central Work DB
+  local_workspace:   # this company's own workspace, if hub_mode is not "hub"
+  company_label:     # the exact value written to the Work DB "Company" property
+
 business:
   notion_workspace:  # URL of this company's Notion, or "none"
   notion_work_db:    # data source id of the Work DB, or "none" — set by /notion-sync

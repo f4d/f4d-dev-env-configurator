@@ -7,22 +7,35 @@ description: Set up and operate the Notion Work DB that mirrors GitHub issues an
 
 Notion is the triage UX and work queue. GitHub is the system of record for engineering state. The sync is one-directional and field-scoped.
 
+**Hub mode** governs where a project's rows live — `hub` (default, central DB), `hub+local` (mirrored to the company's own workspace), or `local` (that workspace only). Read it from the org profile; write it to every row.
+
 **Never write these from Notion or from Claude:** `Issue`, `Repo`, `State`, `Issue URL`, `PR URL`, `Branch`, `Commit`, `CI`, `GH Labels`, `Opened`, `Merged`, `Synced`. The workflow owns them; hand edits get overwritten.
 
 **Freely write these:** `Class`, `Size`, `Priority`, `Stage`, `Area`, `Launch`, `Blocked By`, `Project`, `Client`, `Spec`, `ADR`, `Notes`.
 
 ---
 
-## Mode 1 — Create the Work DB (once per company)
+## Which sync path
 
-1. Read the company's org profile for `notion_workspace`. If absent, ask which workspace and parent page.
+The kit ships the GitHub Actions path because it works today. Notion Workers (beta) is the target — declarative schema, hosted runtime, no secrets in GitHub. Read `${CLAUDE_PLUGIN_ROOT}/templates/notion/SYNC_ARCHITECTURE.md` before changing anything about how sync works, and check whether Workers syncs have left beta.
+
+Migration trigger: at the **third repo**, the cost of copying `notion_sync.py` exceeds the beta risk. Revisit then regardless of status.
+
+---
+
+## Mode 1 — Create the Work DB (once, for the hub)
+
+1. Read the org profile for `hub_workspace`. If absent, ask which workspace and parent page. **One hub DB serves all companies** — do not create a second unless a company's `hub_mode` is `local`.
 2. Create the database using the DDL in `${CLAUDE_PLUGIN_ROOT}/templates/notion/WORK_DB_SCHEMA.md`.
 3. Create the seven views listed in that file. The **Stale** view is not optional — it is the only thing that makes a silently dead sync visible.
 4. Capture the returned data source id.
 5. Tell the user to do these two things themselves — never do them for them:
    - Share the database with their Notion integration (Notion UI, `...` → Connections)
    - Add `NOTION_TOKEN` as a repo or org **secret**, and `NOTION_WORK_DB` as a repo or org **variable**
-6. Record the data source id in the org profile under a `notion_work_db` key.
+6. Record the data source id in the org profile under `notion_work_db`.
+7. Add the company to the `Company` select options and create its saved view.
+
+**Adding a company later** is two steps, not a new database: add the option to `Company`, add a `Company: <X>` filtered view. That is the whole point of hub segmentation.
 
 ---
 

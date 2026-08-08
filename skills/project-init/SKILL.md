@@ -38,6 +38,19 @@ Then ask the project-identity questions the profile cannot answer:
 3. **Is this project shared with the rest of this company's work, or siloed from it?** — decides whether it joins the org Project board and shares cadence. Default to the company's `coherence` setting; ask only to confirm.
 4. **Who is this for — internal, a named client, or a product with outside users?**
 5. **Expected lifespan?** — `throwaway / experiment` | `ongoing product` | `client deliverable with a handoff`
+6. **Where is this project's work tracked?** — the hub-mode branch:
+
+   | Answer | Meaning | Cost |
+   |---|---|---|
+   | **`hub`** *(default)* | The central Work DB in the hub workspace only. `Company` and `Project` segment it. | None |
+   | **`hub+local`** | Hub row is canonical, mirrored into that company's own workspace | A second sync target to maintain |
+   | **`local`** | That company's own workspace only, no hub row | Loses cross-company roll-up |
+
+   Default to `hub` unless the company profile says otherwise. Propose it rather than asking open-ended: *"Tracking in the hub, same as everything else — or does this one need its own workspace?"*
+
+   Choose `hub+local` only when someone **outside your workspace** needs to see status. Choose `local` only for contractual isolation. Both are real maintenance; `hub` is free.
+
+   Whatever is chosen becomes `Hub Mode` on every row this project creates, and is recorded in the org profile so the question isn't re-asked per project in that company.
 
 Question 5 matters more than it looks. A throwaway gets core rules and nothing else. A client deliverable with a handoff needs documentation, a README written for a stranger, and no dependencies the client can't maintain.
 
