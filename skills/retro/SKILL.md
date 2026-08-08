@@ -20,7 +20,8 @@ Question 5 produces more value than the other four combined.
 ## Analyze
 
 **First question for every violated rule: was it even in context?**
-Check the load path before diagnosing inattention. A session started in a
+Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_report.py"` — it answers this
+with counts rather than memory. Check the load path before diagnosing inattention. A session started in a
 subdirectory never loaded the repo-root instruction files. If `session-context.sh`
 is not wired, that is the finding — not the rule.
 

@@ -21,6 +21,21 @@ Read-only. Report, then ask before changing anything.
 - `.claude/settings.json` wires the guard hook
 - `.gitignore` covers `.env`, `*.key`, `*.pem`
 
+**Evidence first — run this before forming any opinion**
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_report.py"
+```
+
+It reports counts, not recollection: how many sessions started outside the repo
+root (and therefore loaded no rules), how often verify actually ran, and whether
+the rules set changed mid-window. **If sessions started in subdirectories, every
+conclusion about "the rules were ignored" is unreliable for those sessions.** Fix
+the load path, then re-read.
+
+If there is no log yet, do not wait for one. Say so, and fall back to the static
+checks below — they are available immediately.
+
 **Enforcement layer** — check this before anything else
 - Is `SessionStart` wired in `.claude/settings.json`? If not, **every session started outside the repo root has been running with no rules loaded.** Report this first; it invalidates any conclusion that "the rules were ignored."
 - Are `rule-zero.sh` and `done-check.sh` wired?

@@ -128,7 +128,9 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Write in 
    Also write `.github/ISSUE_TEMPLATE/bug.yml` and `feature.yml` — structured enough that `@claude` can act on a report directly.
 10. **Process layer** — always, regardless of project size:
    - `docs/specs/`, `docs/decisions/`, `docs/log.md`, `docs/intake.md`
-   - `docs/LIFECYCLE.md`, `docs/DEFINITION.md`, and `docs/ENFORCEMENT.md` copied from `${CLAUDE_PLUGIN_ROOT}/templates/process/`
+   - `docs/LIFECYCLE.md`, `docs/DEFINITION.md`, `docs/ENFORCEMENT.md`, and `docs/TEST_STRATEGY.md` copied from `${CLAUDE_PLUGIN_ROOT}/templates/process/`
+   - `tests/hooks_test.sh` copied from the kit, and wired into the verify command
+   - `.gitignore` entry for `.claude/.session-log` and `.claude/.last-verify` — local telemetry, not shared state
    - `.github/pull_request_template.md` from `PR.template.md`
    - `docs/decisions/001-stack.md` — write the ADR for the stack chosen in this interview. The first decision is always the stack, and it is always worth recording.
 11. `README.md` — human-facing, distinct from CLAUDE.md

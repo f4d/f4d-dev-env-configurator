@@ -40,5 +40,19 @@ anything load-bearing should have become a hook or a test. If you find yourself
 relying on a prose rule to prevent something expensive, say so: that rule is
 mis-classified and belongs in .claude/hooks/ or the test suite.
 EOF
+# ── Telemetry ────────────────────────────────────────────────────────────
+# "Observe for a week" is not something an agent can do — every session starts
+# blank. So the observation is written down instead of remembered.
+# /project-audit reads this log and reports on real counts, not recollection.
+log="$root/.claude/.session-log"
+mkdir -p "$(dirname "$log")" 2>/dev/null
+{
+  printf '%s\t' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf '%s\t' "$([ "$cwd" = "$root" ] && echo "root" || echo "subdir")"
+  printf '%s\t' "$(printf '%s' "${cwd#$root}" | sed 's|^/||' | cut -c1-40)"
+  printf '%s\t' "$([ -f "$root/CLAUDE.md" ] && echo "claudemd" || echo "no-claudemd")"
+  printf '%s\n' "$(ls "$root/.claude/rules"/*.md 2>/dev/null | wc -l | tr -d ' ')rules"
+} >> "$log" 2>/dev/null
+
 echo "=== END PROJECT RULES ==="
 exit 0
