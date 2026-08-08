@@ -1,0 +1,61 @@
+# Org profile — company-level context, captured once, reused by every project.
+# Lives at ~/.claude/f4d/orgs/<slug>.yml
+# Read by /project-init, /work-intake, /ship-it, /contract-first.
+# Anything here is NOT re-asked per project.
+
+org:
+  slug:              # short id, lowercase, used in paths and prefixes — e.g. f4d
+  name:              # display name — e.g. F4 Digital
+  kind:              # own-business | client-work | joint-venture | personal
+  status:            # active | dormant | winding-down
+
+code:
+  github_org:        # github.com/<this>
+  repo_visibility:   # private | public | mixed
+  default_branch:    # main
+  project_board:     # org-level Project URL, or "none"
+  coherence:         # shared | siloed  — do this org's projects share a board and cadence?
+
+conventions:
+  webhook_prefix:    # X-<PREFIX>-Signature  — e.g. F4D
+  package_scope:     # npm scope, e.g. @f4d
+  python_index:      # private index URL, or "none"
+  env_prefix:        # e.g. F4D_
+  commit_style:      # conventional
+  versioning:        # semver
+
+stack_defaults:
+  # Applied unless a project overrides. Keeps repos in one org consistent.
+  backend:           # python | typescript | both
+  db:                # postgres | sqlite | other
+  hosting:           # render | cloudflare | vercel | aws | other
+  storage:           # r2 | s3 | none      <- default only; still confirmed per project
+  ci:                # github-actions
+
+automation:
+  claude_github_app: # installed | not-installed
+  auth_mode:         # oauth-token | api-key
+  auto_pr_review:    # on | off | selective
+  issue_to_pr:       # on | off        (@claude in an issue opens a PR)
+  budget_note:       # free text — spend ceiling or "watch usage"
+
+business:
+  notion_workspace:  # URL of this company's Notion, or "none"
+  notion_work_db:    # data source id of the Work DB, or "none" — set by /notion-sync
+  client_facing:     # yes | no  — do outside people see status?
+  visibility_rule:   # where non-technical stakeholders look for status
+  billing_model:     # retainer | project | internal | n/a
+
+people:
+  # Roles, not a directory. Names only where a name is genuinely needed.
+  owner:             # who decides
+  reviewers:         # who reviews code here, or "solo"
+  external_access:   # none | contractors | clients
+
+constraints:
+  # The things that make this org different. Most valuable section.
+  # Free text lines. Examples:
+  # - production GHL instance is live; never write to it from an agent session
+  # - client owns the repo; we cannot change the license or add dependencies freely
+  # - all work is billable and must map to a tracked item
+  - 

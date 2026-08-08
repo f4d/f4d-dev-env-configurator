@@ -1,0 +1,33 @@
+# Changelog
+
+## 1.4.0
+- Added `/repo-builder` — the front door. Orchestrates `/org-profile` → `/project-init` → `/notion-sync` → `gh repo create` → first commit → push → verify, in one pass
+- Narrowed `claude-code-review.yml` to high-risk paths only: migrations, models, api/routes/handlers, webhooks, adapters, auth, billing, crypto/hashing, `*.sol`, openapi, schemas, workflows, Dockerfiles. Everything else is covered by verify plus human review
+- Review prompt is now a ranked checklist rather than an open request, and explicitly excludes style
+
+## 1.3.0
+- Added `/notion-sync` — Notion Work DB as the triage UX and work queue over GitHub Issues
+- `templates/notion/WORK_DB_SCHEMA.md` — schema with explicit field ownership (GitHub mirror vs triage vs context) and seven views including a Stale view for sync health
+- `scripts/notion_sync.py` — one-directional GitHub → Notion sync; writes only the fields it owns, preserves all triage fields
+- `templates/github/` — `notion-sync.yml`, `claude.yml` (issue → PR), `claude-code-review.yml` (auto review), plus `bug.yml` and `feature.yml` issue forms
+- `/work-intake` now triages in the Work DB; `/ship-it` writes spec, ADR, and notes back
+- `/project-init` wires the workflows and issue templates when the org profile has the GitHub App and a Work DB
+- Org profile gained `notion_work_db`
+
+## 1.2.0
+- Added `/org-profile` — company-level context captured once per company, inherited by every project in it
+- Added `templates/org/ORG.template.yml` — profile schema: identity, GitHub org, conventions, stack defaults, automation, business context, constraints
+- `/project-init` gained **Round 0**: which company, project identity, silo-vs-shared, audience, expected lifespan. Runs `/org-profile` automatically when no profile exists, and skips every question a profile already answers
+- Scaffold now writes `.claude/rules/org.md` from the company's constraints block
+- CLAUDE.md template carries an org/audience/lifespan header
+- `/project-audit` checks org alignment: profile exists, constraints in sync, conventions match, board membership
+
+## 1.1.0
+- Added the product management layer: `/work-intake`, `/write-spec`, `/decision-record`, `/ship-it`, `/retro`
+- Added `templates/process/`: LIFECYCLE, DEFINITION (Ready + Done), CADENCE, and spec/ADR/PR templates
+- `/project-init` now scaffolds `docs/specs/`, `docs/decisions/`, `docs/log.md`, `docs/intake.md`, the PR template, and ADR 001 for the chosen stack
+- CLAUDE.md template gained a Process section pointing at the lifecycle
+- Generalized webhook signature header convention — no project-specific naming
+
+## 1.0.0
+- Initial framework: `/project-init` interview skill, 17 rules modules, guard/format hooks, 4 subagents, scaffold templates, `/project-audit`, `/new-module`, `/new-integration`, `/contract-first`

@@ -1,0 +1,73 @@
+name: claude-code-review
+# Automatic review — scoped to paths where a miss is expensive.
+# Everything else gets verify.yml and human eyes; that is enough.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      # Data layer — unsafe migrations and missing indexes are costly and quiet
+      - '**/migrations/**'
+      - '**/models/**'
+      - '**/schema*'
+      # Anything that faces the outside world
+      - '**/api/**'
+      - '**/routes/**'
+      - '**/handlers/**'
+      - '**/webhooks/**'
+      # Third-party boundaries — timeouts, retries, leaking vendor shapes
+      - '**/adapters/**'
+      - '**/integrations/**'
+      - '**/clients/**'
+      # Auth, money, and anything hashed
+      - '**/auth/**'
+      - '**/billing/**'
+      - '**/payments/**'
+      - '**/royalt*/**'
+      - '**/crypto/**'
+      - '**/hashing/**'
+      # Contracts and infrastructure
+      - '**/*.sol'
+      - 'openapi/**'
+      - 'schemas/**'
+      - '.github/workflows/**'
+      - 'docker-compose*.yml'
+      - 'Dockerfile*'
+      # Never silently
+      - '**/.env.example'
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    # Skip drafts and forks — a fork sees an empty secret and burns a run.
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Review only the changed files in this PR, against CLAUDE.md and .claude/rules/.
+            Check the Definition of Done in docs/DEFINITION.md.
+
+            Prioritize, in order:
+            1. Authorization missing or wrong on a new or changed route
+            2. Unsafe migration — NOT NULL on a populated table, drop/rename in the
+               same release that stops writing, missing FK index
+            3. Secrets, PII, or full payloads reachable by a log line
+            4. External call with no timeout, or retry on a 4xx
+            5. float in a money path; splits that may not sum to the total
+            6. N+1 query, or a query inside a loop
+            7. Vendor response shapes leaking past an adapter
+            8. Hashed payload containing a timestamp, uuid, path, or float
+
+            Be specific: file and line. Do not restate what the PR does.
+            Do not comment on style — the formatter owns that.
+            If it is clean, reply with one line saying so.

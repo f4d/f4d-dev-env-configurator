@@ -1,0 +1,41 @@
+name: Bug
+description: Something behaves differently than it should
+labels: [bug]
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What should have happened
+    validations: { required: true }
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What happened instead. Include the exact error if there is one.
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Smallest sequence that triggers it. A failing test is ideal.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations: { required: true }
+  - type: input
+    id: scope
+    attributes:
+      label: Where
+      description: Endpoint, module, or file if known
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Blocks users
+        - Wrong data
+        - Degraded but usable
+        - Cosmetic
+    validations: { required: true }

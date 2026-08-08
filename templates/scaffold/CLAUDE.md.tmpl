@@ -1,0 +1,41 @@
+# {{PROJECT_NAME}}
+
+{{ONE_LINE_PURPOSE}}
+
+**Org:** {{ORG_NAME}} · **For:** {{AUDIENCE}} · **Lifespan:** {{LIFESPAN}}
+Company-level constraints are in `.claude/rules/org.md` — read them first.
+
+## Architecture
+{{ARCH_MAP}}
+
+## Stack
+- {{STACK_LINES}}
+
+## Commands
+```
+{{DEV_UP}}          # start local stack
+{{DEV_RESET}}       # reset db + reseed
+{{VERIFY}}          # typecheck + lint + test — must pass before any commit
+```
+
+## Rules
+Detailed rules live in `.claude/rules/`. Read the relevant file before working in that area:
+{{RULES_INDEX}}
+
+## Non-negotiables
+- Run the verify command before every commit.
+- Never commit `.env`, keys, or credentials.
+- Never edit generated types by hand.
+- Never write a test that calls a live third-party API.
+- Ask before changing anything outside the stated task.
+
+## Process
+Work follows `docs/LIFECYCLE.md`. Specs in `docs/specs/`, decisions in `docs/decisions/`.
+Before building anything medium or larger, there is a spec. Before any hard-to-reverse
+choice, there is an ADR. Use `/work-intake` when it is unclear which applies.
+
+## External systems
+{{INTEGRATIONS_TABLE}}
+
+## Canonical record
+{{CANONICAL_RULE}}

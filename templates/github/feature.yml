@@ -1,0 +1,30 @@
+name: Feature
+description: Something new or changed
+labels: [feature]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who is blocked, and by what. Describe it without naming a solution.
+    validations: { required: true }
+  - type: textarea
+    id: success
+    attributes:
+      label: Success looks like
+      description: Observable outcomes someone outside this work could verify
+    validations: { required: true }
+  - type: textarea
+    id: notdoing
+    attributes:
+      label: Explicitly not doing
+      description: The more useful half. What is out of scope?
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size guess
+      description: By uncertainty, not hours
+      options:
+        - S — finished state fits in one sentence
+        - M — know what, not exactly how
+        - L — the approach itself is in question

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "==> tearing down"
+docker compose down -v
+echo "==> starting stack"
+docker compose up -d --wait
+echo "==> migrating"
+{{MIGRATE_CMD}}
+echo "==> seeding"
+{{SEED_CMD}}
+echo "==> ready"
