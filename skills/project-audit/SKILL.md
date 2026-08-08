@@ -42,6 +42,12 @@ checks below — they are available immediately.
 - For each rule in `.claude/rules/`, ask: is this mechanically enforceable, and is it enforced? List every enforceable-but-prose rule. That list is the real audit finding.
 - Are there near-duplicate files suggesting Rule 0 was not in force — `*V2`, `*-final`, `*-new`, `*-copy`, `*-updated`?
 
+**Framework version**
+- Read `.claude/.framework-state.json`. How far behind is this repo?
+- Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/upgrade.py" --plugin "$CLAUDE_PLUGIN_ROOT"` and report the classification counts.
+- **Confirm the plugin is actually installed.** Every hook path is `${CLAUDE_PLUGIN_ROOT}/...`; if the plugin is absent, every guard has silently disappeared and the repo looks fine. Absence reads as permission — the same failure shape as a guard that cannot parse its input.
+- More than two minor versions behind → upgrade before any new feature work.
+
 **Registry honesty** — the highest-signal check in this audit
 - Does `.claude/rules/REGISTRY.md` exist?
 - For every row claiming `HOOK`, `TEST`, or `GATE`: **confirm that check actually exists and runs.** A registry asserting enforcement that is not wired is worse than no registry — it makes the gap invisible.

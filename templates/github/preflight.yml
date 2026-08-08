@@ -1,0 +1,47 @@
+name: preflight
+# A12 — the framework tells you which secrets to add and never checks that you did.
+# A repo can carry every workflow with no secrets configured: they fail on first
+# run, or worse, skip silently. This asserts they exist before anything depends
+# on them.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Required secrets and variables
+        env:
+          HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          HAS_NOTION: ${{ secrets.NOTION_TOKEN != '' }}
+          VAR_NOTION_DB: ${{ vars.NOTION_WORK_DB }}
+        run: |
+          missing=0
+          need_workflow() { [ -f ".github/workflows/$1" ]; }
+
+          if need_workflow claude.yml || need_workflow claude-code-review.yml; then
+            if [ "$HAS_CLAUDE" != "true" ]; then
+              echo "::error::CLAUDE_CODE_OAUTH_TOKEN is not set, but claude workflows are present."
+              echo "  Generate with: claude setup-token"
+              echo "  Add as an ORG secret so every repo inherits it."
+              missing=1
+            fi
+          fi
+
+          if need_workflow notion-sync.yml; then
+            [ "$HAS_NOTION" = "true" ] || { echo "::error::NOTION_TOKEN is not set, but notion-sync.yml is present."; missing=1; }
+            [ -n "$VAR_NOTION_DB" ] || { echo "::error::NOTION_WORK_DB variable is not set (must be the DATA SOURCE id, not the database id)."; missing=1; }
+          fi
+
+          if [ "$missing" -eq 1 ]; then
+            echo "Preflight failed. A workflow is present whose credentials are missing —"
+            echo "it would fail on first run, or skip silently, which is worse."
+            exit 1
+          fi
+          echo "Preflight passed."

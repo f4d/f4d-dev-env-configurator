@@ -11,56 +11,38 @@ permissions:
   pull-requests: read
 
 jobs:
-  fixtures:
-    name: "I-02 I-03 G-05 — adapter fixtures"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: python .github/scripts/check_fixtures.py
-        env:
-          FIXTURE_MAX_AGE_DAYS: '90'
-
-  contract-pin:
-    name: "K-02 K-03 — contract version pin"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: python .github/scripts/check_contract_pin.py
-
-  guess-lists:
-    name: "S-05 — one canonical resolver"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: python .github/scripts/check_guess_lists.py
-
-  rollback:
-    name: "O-02 O-03 D-05 — rollback rehearsed"
+  checks:
+    name: "registry gates — fixtures, contract, guess-lists, rollback, statelessness"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - run: python .github/scripts/check_rollback.py
+      # A7: one checkout, one python setup, all five checks. Five separate jobs
+      # spent more time on setup-python than on the checks themselves.
+      # Each check reports its own rule IDs; the job fails if any fails.
+      - name: Run all registry gates
         env:
-          BASE_REF: origin/${{ github.base_ref }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-
-  statelessness:
-    name: "ST-01..ST-07 — no per-instance state"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: python .github/scripts/check_statelessness.py
+          FIXTURE_MAX_AGE_DAYS: '90'
+          # A8: written by the scaffolder from the interview answer. A gate that
+          # fires wrongly gets disabled, and a disabled gate protects nothing.
+          STATELESS_SINGLE_INSTANCE: ${{ vars.SINGLE_INSTANCE || '0' }}
+        run: |
+          fail=0
+          run() {
+            echo "::group::$1"
+            python ".github/scripts/$1" || fail=1
+            echo "::endgroup::"
+          }
+          run check_fixtures.py        # I-02 I-03 G-05
+          run check_contract_pin.py    # K-02 K-03
+          run check_guess_lists.py     # S-05
+          BASE_REF=origin/${{ github.base_ref }} \
+          PR_BODY="${{ github.event.pull_request.body }}" \
+            run check_rollback.py      # O-02 O-03 D-05
+          run check_statelessness.py   # ST-01..ST-07
+          exit $fail
 
   hooks:
     name: "G-02 G-03 — hooks fire, and fail loud"

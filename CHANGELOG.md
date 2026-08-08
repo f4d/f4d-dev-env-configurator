@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.10.0 — architecture pass
+Full architecture review in `docs/ARCHITECTURE_REVIEW.md`. Verdict: the enforcement architecture is sound; the lifecycle architecture was built for day one and under-built for day two hundred. Twelve findings, top three fixed here.
+
+**Framework violated its own G-02.** Five of seven hooks had no test, including `session-context.sh` — the load-path fix, the most load-bearing hook in the system. Now 24 test cases covering all seven. Writing those tests found a real bug: `done-check.sh` used `git diff HEAD`, which returns nothing in a repo with no commits and **misses untracked files entirely** — a brand new source file did not count as a change. Now uses `git status --porcelain`.
+
+**A1 — upgrade path (critical).** `scripts/upgrade.py` + `/framework-upgrade`. Diffs a project's `.claude/` against the plugin and classifies each file as UNCHANGED / FRAMEWORK / LOCAL / CONFLICT / NEW / ORPHAN against a recorded baseline. Applies FRAMEWORK only; local customizations survive; conflicts go to a human. All four classifications proved with a live test. Without this, N repos scaffolded over N months sit at N versions and *"we are always working on the same system"* quietly becomes false.
+
+**A3 — the framework had no ADRs of its own.** Three recorded: plugin distribution, GitHub over Linear, and document-everything-track-enforcement. Each with the alternatives that lost and why.
+
+**A12 — secret preflight.** `preflight.yml` asserts that `CLAUDE_CODE_OAUTH_TOKEN`, `NOTION_TOKEN`, and `NOTION_WORK_DB` exist when the workflows depending on them are present. The framework told you what to add and never checked that you did.
+
+**A7 / A8 — gate cost and false firing.** The five script gates collapse into one job: one checkout, one Python setup, all five checks with grouped output. `STATELESS_SINGLE_INSTANCE` now comes from a repo variable the scaffolder sets from the interview answer, so the statelessness gate does not fire wrongly on a single-instance project.
+
+Remaining findings A2, A4, A5, A6, A9, A10, A11 are documented with severity, effort, and priority in the review.
+
 ## 1.9.0 — statelessness
 A failure class the framework had no coverage for: state that works on one instance and fails intermittently on two. Structurally invisible, because local dev, tests, and CI are all single-instance — the first multi-instance environment is production.
 

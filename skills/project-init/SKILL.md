@@ -149,6 +149,9 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Write in 
    - `tests/hooks_test.sh` copied from the kit, and wired into the verify command
    - `templates/tests/guard_tests.{py,ts}` copied to the project suite — S-01 and S-02 apply to every project
    - `.github/workflows/gates.yml` plus `scripts/check_*.py` copied to `.github/scripts/` — only the jobs whose rules this project holds. Delete the rest; a gate for a rule the project does not have will fail confusingly.
+   - `.github/workflows/preflight.yml` — asserts required secrets exist before anything depends on them
+   - Set the `SINGLE_INSTANCE` repo variable to `1` for single-instance projects, so the statelessness gate does not fire wrongly. A gate that fires wrongly gets disabled, and a disabled gate protects nothing.
+   - Run `scripts/upgrade.py --apply` once at the end to record the framework baseline in `.claude/.framework-state.json`. Without it, the first upgrade cannot tell a local customization from a framework change.
    - `.gitignore` entry for `.claude/.session-log` and `.claude/.last-verify` — local telemetry, not shared state
    - `.github/pull_request_template.md` from `PR.template.md`
    - `docs/decisions/001-stack.md` — write the ADR for the stack chosen in this interview. The first decision is always the stack, and it is always worth recording.
