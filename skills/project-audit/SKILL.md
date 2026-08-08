@@ -42,6 +42,13 @@ checks below — they are available immediately.
 - For each rule in `.claude/rules/`, ask: is this mechanically enforceable, and is it enforced? List every enforceable-but-prose rule. That list is the real audit finding.
 - Are there near-duplicate files suggesting Rule 0 was not in force — `*V2`, `*-final`, `*-new`, `*-copy`, `*-updated`?
 
+**Registry honesty** — the highest-signal check in this audit
+- Does `.claude/rules/REGISTRY.md` exist?
+- For every row claiming `HOOK`, `TEST`, or `GATE`: **confirm that check actually exists and runs.** A registry asserting enforcement that is not wired is worse than no registry — it makes the gap invisible.
+- For every row marked `PROSE` with a promote-when trigger: has the trigger fired? List those. That list is the promotion backlog.
+- Run each gate script directly and report pass/fail:
+  `python3 .github/scripts/check_fixtures.py`, `check_contract_pin.py`, `check_guess_lists.py`
+
 **Verify integrity**
 - A single verify command exists
 - It is identical in CLAUDE.md, the script, and CI

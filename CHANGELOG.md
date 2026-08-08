@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.8.0 — document everything, enforce what's ready, track the rest
+Answers "can't we just document them now and figure out enforcement later?" — yes, provided the gap is tracked rather than forgotten.
+
+**`templates/rules/REGISTRY.md`** — every rule the framework holds, with an ID (C-, G-, S-, P-, D-, I-, K-, M-, T-, O-), the layer it should live in, what enforces it today, and a promote-when trigger for anything still prose. `PROSE` on a mechanisable rule is now a tracked debt with a ticket, not an invisible gap. `JUDGMENT` is a finished state — do not mechanize it.
+
+**Holes closed**
+- H2 *agents were advisory* → `templates/github/gates.yml`: six CI jobs that FAIL the build, each named with the rule IDs it enforces. The schema job makes the agent's verdict a gate by acting on its PASS/FAIL line.
+- H3 *rollback never tested* → `scripts/check_rollback.py`: every migration needs a down-path or an explicit irreversible declaration, and "revert the commit" is rejected as a rollback when a migration ran.
+- H4 *contract drift not version-enforced* → `scripts/check_contract_pin.py`: fails when a consumer is unpinned or more than one major behind.
+- H5 *fixtures rot silently* → `scripts/check_fixtures.py`: requires `_meta.recorded_at`, fails at 90 days, and requires all four fixtures per adapter.
+- H6 *hub+local had no reconciliation* → `/notion-sync` Mode 5: three-way divergence report, hub canonical for mirror fields, and a 5%-for-two-checks trigger to drop the mode.
+- H7 *promotion path was manual* → `/promote-rule`: identify by ID, confirm the rule was actually in context, choose the layer, build it red-first, wire it, update the registry, and promote to the framework only after it has proved itself in one repo. Also owns demotion.
+- S-05 *guess lists* → `scripts/check_guess_lists.py`. It immediately caught real duplication in this kit's own scripts; fixed by extracting `scripts/_common.py`.
+
+**Reference tests** — `templates/tests/guard_tests.{py,ts}` implement S-01 (non-empty before assertion) and S-02 (no raw ids in output) in both languages, each with a case proving the guard fails. Copied into every project by `/project-init`.
+
+**Audit** — `/project-audit` now verifies **registry honesty**: every row claiming HOOK/TEST/GATE must have that check actually wired and running. A registry asserting enforcement that does not exist is worse than no registry.
+
 ## 1.7.0 — evidence, not recollection
 - **Session telemetry.** `session-context.sh` now appends to `.claude/.session-log`: timestamp, whether the session started at the repo root, which subdirectory, whether CLAUDE.md existed, and the rules count. `verify-record.sh` (PostToolUse:Bash) records verify runs.
 - **`scripts/session_report.py`** turns that log into findings with counts — how many sessions loaded no rules, how often verify ran, whether the rules set changed mid-window. This replaces "observe for a week and then decide," which no agent can do because every session starts blank.

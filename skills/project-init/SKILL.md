@@ -119,7 +119,7 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Write in 
 1. `.gitignore`, toolchain pins (`.python-version`, `packageManager`)
 2. `CLAUDE.md` — assembled from `templates/scaffold/CLAUDE.md.tmpl`, **kept under 80 lines**
 3. `.claude/rules/org.md` — the company's `constraints` block, copied verbatim from its org profile
-4. `.claude/rules/*.md` — copy only the selected modules from `${CLAUDE_PLUGIN_ROOT}/templates/rules/`
+4. `.claude/rules/*.md` — copy only the selected modules from `${CLAUDE_PLUGIN_ROOT}/templates/rules/`, **plus `REGISTRY.md` always**. Then prune the registry to the rules this project actually holds, and set each row's `Today` column to what genuinely enforces it here. A registry asserting checks that do not exist is worse than none.
 5. `.claude/settings.json` — hooks wired, **including `SessionStart`**. This is not optional: without it, a session started in any subdirectory never loads the repo-root instruction files at all. See `templates/process/ENFORCEMENT.md`.
 6. `.claude/agents/*.md` — only the selected agents
 7. `docker-compose.yml` + `scripts/dev-reset.sh`
@@ -130,6 +130,8 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Write in 
    - `docs/specs/`, `docs/decisions/`, `docs/log.md`, `docs/intake.md`
    - `docs/LIFECYCLE.md`, `docs/DEFINITION.md`, `docs/ENFORCEMENT.md`, and `docs/TEST_STRATEGY.md` copied from `${CLAUDE_PLUGIN_ROOT}/templates/process/`
    - `tests/hooks_test.sh` copied from the kit, and wired into the verify command
+   - `templates/tests/guard_tests.{py,ts}` copied to the project suite — S-01 and S-02 apply to every project
+   - `.github/workflows/gates.yml` plus `scripts/check_*.py` copied to `.github/scripts/` — only the jobs whose rules this project holds. Delete the rest; a gate for a rule the project does not have will fail confusingly.
    - `.gitignore` entry for `.claude/.session-log` and `.claude/.last-verify` — local telemetry, not shared state
    - `.github/pull_request_template.md` from `PR.template.md`
    - `docs/decisions/001-stack.md` — write the ADR for the stack chosen in this interview. The first decision is always the stack, and it is always worth recording.

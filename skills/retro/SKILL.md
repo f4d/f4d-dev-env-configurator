@@ -42,6 +42,13 @@ under-emphasized. Restating it more firmly changes nothing.
 
 Read `templates/process/ENFORCEMENT.md` for the full model and this framework's own audit of which of its rules are still prose that should not be.
 
+## Promote
+
+For each mis-classified rule, run `/promote-rule` with its ID. That skill owns
+building the check red-first, wiring it, and updating the registry. Do not
+restate a rule more firmly — that has already been tried and is what produced
+this retro.
+
 ## Prune
 
 Adding is easy; this part is not. For each existing rule ask: *has this earned its context this month?* A rule nobody violated and nobody needed is a candidate to cut. Keep the total under ~400 lines.

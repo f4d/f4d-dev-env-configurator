@@ -88,7 +88,27 @@ When answering from this DB, lead with what the user asked and attach the commit
 
 ---
 
-## Mode 5 — Diagnose a stale sync
+## Mode 5 — Reconcile hub+local (only when `hub_mode: hub+local`)
+
+Two copies of a row will diverge. Detect it; do not assume it away.
+
+**The hub row is canonical.** The local copy is a projection. When they disagree,
+the hub wins for mirror fields; a triage field edited only locally is a *finding*,
+not a merge.
+
+Weekly, or before any status conversation with that company:
+
+1. Query both databases for rows with the same `Issue` + `Repo`
+2. Report three sets, never silently merge:
+   - **Hub only** — the mirror never ran. Sync failure.
+   - **Local only** — someone filed work outside the flow. Create the GitHub issue.
+   - **Both, disagreeing** — list the fields. If a mirror field differs, the local copy is stale; re-mirror. If a triage field differs, ask which is intended — that is a human decision.
+3. Log the count in `docs/log.md`. A rising divergence count means `hub+local` is costing more than it returns, and the project should move to `hub`.
+
+If divergence exceeds ~5% of rows for two consecutive checks, that is the signal
+to drop `hub+local`. Record it as a decision, not a drift.
+
+## Mode 6 — Diagnose a stale sync
 
 If the **Stale** view has rows:
 

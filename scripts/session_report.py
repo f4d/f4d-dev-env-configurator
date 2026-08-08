@@ -14,13 +14,8 @@ import sys
 from collections import Counter
 
 
-def repo_root():
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"], text=True, stderr=subprocess.DEVNULL
-        ).strip()
-    except Exception:
-        return os.getcwd()
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import repo_root  # noqa: E402
 
 
 def main():

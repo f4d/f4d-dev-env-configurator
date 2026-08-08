@@ -30,6 +30,7 @@ Built for the shape of work it is most often used on: **API-based, DB-backed web
 | `/new-integration` | Adding an external data source |
 | `/contract-first` | Changing a shape shared across repos |
 | `/notion-sync` | Create the Work DB, wire a repo, triage, or query what's in flight |
+| `/promote-rule` | Move a rule up the enforcement ladder and keep the registry honest |
 
 ### Supporting
 

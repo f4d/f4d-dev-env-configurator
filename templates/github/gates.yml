@@ -1,0 +1,97 @@
+name: gates
+# Rule-registry gates. These FAIL the build — they are not advisory.
+# Each job names the rule IDs it enforces so a failure is traceable to REGISTRY.md.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  fixtures:
+    name: "I-02 I-03 G-05 — adapter fixtures"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python .github/scripts/check_fixtures.py
+        env:
+          FIXTURE_MAX_AGE_DAYS: '90'
+
+  contract-pin:
+    name: "K-02 K-03 — contract version pin"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python .github/scripts/check_contract_pin.py
+
+  guess-lists:
+    name: "S-05 — one canonical resolver"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python .github/scripts/check_guess_lists.py
+
+  rollback:
+    name: "O-02 O-03 D-05 — rollback rehearsed"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python .github/scripts/check_rollback.py
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+
+  hooks:
+    name: "G-02 G-03 — hooks fire, and fail loud"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash tests/hooks_test.sh
+
+  schema:
+    name: "D-01..D-04 — migration safety"
+    runs-on: ubuntu-latest
+    # Only when a migration is actually in the diff.
+    if: contains(github.event.pull_request.labels.*.name, 'migration') || true
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Detect migrations
+        id: detect
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD \
+             | grep -qE '(migrations?|alembic)/'; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: anthropics/claude-code-action@v1
+        if: steps.detect.outputs.found == 'true'
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Run the schema-reviewer audit on the migrations in this diff.
+            Enforce D-01 (every FK indexed), D-02 (no NOT NULL on a populated
+            table in one step), D-03 (no drop/rename in the release that stops
+            writing), D-04 (money is numeric, never float).
+
+            Output the findings table. Then, on the LAST line, print exactly
+            GATE:FAIL if any finding is UNSAFE, otherwise GATE:PASS.
+      - name: Enforce
+        if: steps.detect.outputs.found == 'true'
+        run: |
+          # The agent's verdict is only a gate if something acts on it.
+          grep -q 'GATE:PASS' "$GITHUB_STEP_SUMMARY" 2>/dev/null || {
+            echo "schema gate did not report PASS — treating as failure"; exit 1; }
