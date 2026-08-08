@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.10.1
+- Added `docs/BACKLOG.md` — every open finding, blocked item, registry debt entry, opportunity, and working agreement in resumable form. Each item carries why it matters, what to build, done-when criteria, and files touched, so work can be picked up cold without re-deriving the reasoning.
+
 ## 1.10.0 — architecture pass
 Full architecture review in `docs/ARCHITECTURE_REVIEW.md`. Verdict: the enforcement architecture is sound; the lifecycle architecture was built for day one and under-built for day two hundred. Twelve findings, top three fixed here.
 

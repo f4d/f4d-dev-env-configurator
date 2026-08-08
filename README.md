@@ -1,5 +1,8 @@
 # f4d-kit
 
+> **Picking this up mid-stream?** Read `docs/BACKLOG.md` first. It carries every
+> open finding, blocked item, and working agreement in resumable form.
+
 A reusable baseline development and code product management framework, delivered as a Claude Code plugin. Install it into any repo — new or inherited — and get the same process, conventions, guardrails, and scaffolding every time.
 
 Built for the shape of work it is most often used on: **API-based, DB-backed web apps implementing custom logic over multi-source data integrations.** Nothing in it is specific to any one project. Modules are opt-in per repo.
