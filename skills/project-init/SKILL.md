@@ -87,6 +87,8 @@ Only ask what applies, based on Rounds 1–2. Each YES pulls in a rules module a
 
 **Rule:** never assume a module. If storage wasn't mentioned, ask — don't skip and don't include. Storage is configured per project, never inherited by default.
 
+**Exception — always included, never asked about:** `core`, `guards`, `silent-degradation`. These address the failure class that survives review, and a project that opts out of them has opted out of the point of the framework.
+
 ---
 
 ## Step 2 — Confirm the plan
@@ -118,7 +120,7 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Write in 
 2. `CLAUDE.md` — assembled from `templates/scaffold/CLAUDE.md.tmpl`, **kept under 80 lines**
 3. `.claude/rules/org.md` — the company's `constraints` block, copied verbatim from its org profile
 4. `.claude/rules/*.md` — copy only the selected modules from `${CLAUDE_PLUGIN_ROOT}/templates/rules/`
-5. `.claude/settings.json` — hooks wired
+5. `.claude/settings.json` — hooks wired, **including `SessionStart`**. This is not optional: without it, a session started in any subdirectory never loads the repo-root instruction files at all. See `templates/process/ENFORCEMENT.md`.
 6. `.claude/agents/*.md` — only the selected agents
 7. `docker-compose.yml` + `scripts/dev-reset.sh`
 8. `verify` script in `package.json` and/or `Makefile`
@@ -126,7 +128,7 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Write in 
    Also write `.github/ISSUE_TEMPLATE/bug.yml` and `feature.yml` — structured enough that `@claude` can act on a report directly.
 10. **Process layer** — always, regardless of project size:
    - `docs/specs/`, `docs/decisions/`, `docs/log.md`, `docs/intake.md`
-   - `docs/LIFECYCLE.md` and `docs/DEFINITION.md` copied from `${CLAUDE_PLUGIN_ROOT}/templates/process/`
+   - `docs/LIFECYCLE.md`, `docs/DEFINITION.md`, and `docs/ENFORCEMENT.md` copied from `${CLAUDE_PLUGIN_ROOT}/templates/process/`
    - `.github/pull_request_template.md` from `PR.template.md`
    - `docs/decisions/001-stack.md` — write the ADR for the stack chosen in this interview. The first decision is always the stack, and it is always worth recording.
 11. `README.md` — human-facing, distinct from CLAUDE.md

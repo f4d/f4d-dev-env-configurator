@@ -20,11 +20,15 @@ Each module is a single file copied into `.claude/rules/`. Include only what the
 | `frontend` | ask | R3 | Perf budgets, a11y, no client-side waterfalls |
 | `livesystem` | ask | Q8 | Prod is read-only to agents, migration notes required, no schema change without plan |
 | `dataprotection` | ask | R3 | PII inventory, no PII in logs/keys/URLs, retention, redaction in fixtures |
+| `guards` | **always** | — | Red-then-green, guard hygiene, where a rule belongs |
+| `silent-degradation` | **always** | — | No degrade-to-default, catch→[] trap, guess lists, hardcode boundary, raw ids |
+| `capability-parity` | if UI + API must agree | Q3+Q5 | Consumer enumeration, UI-as-proof, row-vs-call failure, preview/execute parity |
 | `observability` | recommend if any of the above | — | Structured logs, correlation IDs, no payload logging, health endpoints |
 
 ## Sizing guidance
 
-- **Typical API + DB + integrations project:** core, api, database, python *or* typescript, data-integration, observability. Six files, ~250 lines total.
+- **Typical API + DB + integrations project:** core, guards, silent-degradation, api, database, python *or* typescript, data-integration, observability. Eight files, ~300 lines total.
+- **`guards` and `silent-degradation` are not optional.** They are the two modules that address the failure class which survives review — output that looks plausible while being wrong. Every project gets them.
 - **Add storage only when asked for.** Most projects touch files; few need a storage *policy*. The policy is worth it when files are user-supplied, large, or served publicly.
 - **`determinism` without `storage` is almost never right.** `storage` without `determinism` is common and fine.
 - If a project needs more than ten modules, it is probably two projects.

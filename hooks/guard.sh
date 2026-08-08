@@ -1,14 +1,25 @@
 #!/usr/bin/env bash
 # f4d-kit PreToolUse guard. Exit 2 = hard block, stderr returned to Claude.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/_parse.sh"
+
 input=$(cat)
-target=$(printf '%s' "$input" | jq -r '.tool_input.command // .tool_input.file_path // .tool_input.path // ""' 2>/dev/null || echo "")
-[ -z "$target" ] && exit 0
+cmd=$(hook_field "$input" "command")
+[ -z "$cmd" ] && cmd=$(hook_field "$input" "file_path")
+[ -z "$cmd" ] && cmd=$(hook_field "$input" "path")
+
+# A guard that cannot read its input must not pretend to pass.
+if [ -z "$cmd" ] && hook_parse_failed "$input"; then
+  echo "BLOCKED: guard.sh could not parse the tool input, so it cannot verify safety." >&2
+  echo "Install jq or python3, or fix the hook. Refusing to allow unverified." >&2
+  exit 2
+fi
+[ -z "$cmd" ] && exit 0
 
 deny() { echo "BLOCKED by f4d-kit: $1" >&2; exit 2; }
 
 shopt -s nocasematch
-case "$target" in
+case "$cmd" in
   *".env"*|*"id_rsa"*|*".pem"*|*"credentials.json"*)
       deny "secret material is off-limits. Use .env.example and describe the variable instead." ;;
   *"keystore"*|*"mnemonic"*|*"seed phrase"*|*".key"*)

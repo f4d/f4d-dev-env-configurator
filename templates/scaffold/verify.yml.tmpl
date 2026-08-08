@@ -1,5 +1,14 @@
 name: verify
-on: [push, pull_request]
+# Path filters: docs-only changes must not pay the full gate.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'LICENSE'
 jobs:
   verify:
     runs-on: ubuntu-latest

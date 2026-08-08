@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.6.0 — enforcement pass
+Driven by a field report: a full set of rules was in force and none of them fired, because they were prose.
+
+**Fixed a defect in this kit's own guards.** `guard.sh` depended on `jq`. On any machine without it the parse returned empty and the hook **exited 0 silently** — a key-safety guard that looked installed and enforced nothing. Both hooks now fall back to python3, then sed, and **fail loud (exit 2) rather than allowing** when input cannot be parsed.
+
+**New hooks**
+- `session-context.sh` (SessionStart) — fixes the load-path defect. `CLAUDE.md` only auto-loads from the directory a session starts in; a session started in `dist/` or `packages/x/` never saw the repo-root rules at all. This walks to the repo root and injects them regardless of cwd.
+- `rule-zero.sh` (PreToolUse:Write) — blocks creating a variant alongside an existing canonical file (`reportV2`, `report-final`, `new-report`) until the existing one is named. Mechanical fix for the twenty-near-duplicates pattern.
+- `done-check.sh` (Stop) — refuses a silent "done" when source changed and verify never ran, or ran before the newest change.
+
+**New rules modules** — `guards` and `silent-degradation` are now always included, never asked about
+- `silent-degradation` — no degrade-to-default, the `catch → []` trap that passes every downstream "is anything missing" gate, empty-collection vacuous pass, guess lists, one canonical resolver, the hardcode boundary, never render a raw id, cross-check load-bearing numbers
+- `guards` — red-then-green hygiene, where a rule belongs by layer, naming the unguardable residual
+- `capability-parity` — consumer enumeration on contract change, UI-as-proof, row-level vs call-level failure, preview/execute parity
+
+**New process doc** — `templates/process/ENFORCEMENT.md`: the three-layer model, the load-path defect, and an honest audit of which f4d-kit rules are still prose that should not be, in priority order
+
+**Other**
+- Definition of Done gained Guard hygiene and Contract changes sections
+- `/retro` now asks "was it even in context?" before "was it ignored?"
+- `/project-audit` checks the enforcement layer first, and greps for the silent-degradation patterns
+- `verify.yml` gained path filters so docs-only changes skip the full gate
+- Added `tests/hooks_test.sh` — 14 red-then-green cases, all passing
+
 ## 1.5.0
 - **Hub segmentation.** Work DB gained `Company` and `Hub Mode` properties plus By-company and per-company views. One hub database serves every company; adding a company is an option plus a view, not a new database
 - Added the hub-mode branch to both interviews: `hub` (default) | `hub+local` | `local`, with the cost of each stated. Recorded in the org profile so it is asked once per company

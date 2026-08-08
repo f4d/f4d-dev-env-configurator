@@ -31,6 +31,21 @@ If a spec passes this without a single question raised, it is usually underspeci
 - [ ] Rollback step written in the PR description
 - [ ] Seed data still loads from a clean reset
 
+## Guard hygiene — applies to every check added
+
+- [ ] Every new guard has been **broken deliberately, seen to fail, and restored**. A guard that passed on its first run has proved nothing.
+- [ ] Every test that iterates a collection asserts the collection is **non-empty** first
+- [ ] No load-bearing number is trusted from a single source — cross-checked against a second
+- [ ] If a fixture was corrected, confirmed that no case it previously expressed was deleted
+- [ ] Anything that genuinely cannot be guarded is **named**, with what would catch it later. Silence reads as "guarded."
+
+## Contract changes
+
+- [ ] Every consumer of the changed contract enumerated and aligned **in this change**
+- [ ] Any consumer that could not be aligned renders a visible operator-facing state — never an exception, never silence
+- [ ] Preview and execute produce the same request set
+- [ ] No new value, type, or shape degrades to a default; unknowns fail a check or render blocked
+
 ## The escape hatch
 
 You may ship without meeting the Definition of Done exactly once per incident, and only for an incident. When you do, open the follow-up issue in the same hour, linked from the PR. An unpaid exception becomes a permanent lowering of the bar.

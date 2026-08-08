@@ -19,7 +19,14 @@ Question 5 produces more value than the other four combined.
 
 ## Analyze
 
-For each recurring problem, find the layer it belongs to:
+**First question for every violated rule: was it even in context?**
+Check the load path before diagnosing inattention. A session started in a
+subdirectory never loaded the repo-root instruction files. If `session-context.sh`
+is not wired, that is the finding — not the rule.
+
+**Second question: which layer should this have been in?**
+A rule that was in force and did not fire is usually mis-classified, not
+under-emphasized. Restating it more firmly changes nothing.
 
 | Problem | Fix belongs in |
 |---|---|
@@ -31,6 +38,8 @@ For each recurring problem, find the layer it belongs to:
 | A whole class of bug ships repeatedly | A Definition of Done line |
 
 **Rules are for things Claude should do. Hooks are for things Claude must never do.** If the consequence is expensive or irreversible, it belongs in a hook.
+
+Read `templates/process/ENFORCEMENT.md` for the full model and this framework's own audit of which of its rules are still prose that should not be.
 
 ## Prune
 

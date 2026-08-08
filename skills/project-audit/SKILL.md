@@ -21,6 +21,12 @@ Read-only. Report, then ask before changing anything.
 - `.claude/settings.json` wires the guard hook
 - `.gitignore` covers `.env`, `*.key`, `*.pem`
 
+**Enforcement layer** — check this before anything else
+- Is `SessionStart` wired in `.claude/settings.json`? If not, **every session started outside the repo root has been running with no rules loaded.** Report this first; it invalidates any conclusion that "the rules were ignored."
+- Are `rule-zero.sh` and `done-check.sh` wired?
+- For each rule in `.claude/rules/`, ask: is this mechanically enforceable, and is it enforced? List every enforceable-but-prose rule. That list is the real audit finding.
+- Are there near-duplicate files suggesting Rule 0 was not in force — `*V2`, `*-final`, `*-new`, `*-copy`, `*-updated`?
+
 **Verify integrity**
 - A single verify command exists
 - It is identical in CLAUDE.md, the script, and CI
@@ -40,6 +46,10 @@ Read-only. Report, then ask before changing anything.
 - Any outbound call without a timeout
 - Any log line that could emit a payload or credential
 - Seed data: does it contain nulls, unicode, and boundary values, or only happy-path rows?
+- Any `catch` returning an empty collection — then grep that collection's consumers for **counts and comparisons**, not just renderers
+- Any test iterating a collection without first asserting it is non-empty (vacuous pass)
+- Any raw identifier reaching user-visible output
+- Any hardcoded list of values the source could report live (guess list), and whether two such lists exist for the same question
 
 ## Output
 
