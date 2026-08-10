@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.13.0 — audit writes its report as a document
+`/project-audit` now writes `docs/f4d-audit-<date>.md` into the audited repo (dedicated branch, never pushed unasked) — header, three-sentence summary, findings with file:line evidence, proposed changes ranked by what bites soonest with an explicit **danger** column (what adopting each change could break in this repo — a hook blocking a current workflow, a gate going red on existing code), a prioritized todo list handable to a fresh session, and a **Not checked** section, because silence reads as "checked and fine". The document is the only file the audit writes; the terminal summary stays. Requested for the first live retrofit test: audit a scratch clone, review the document, decide separately.
+
 ## 1.12.0 — A5: scaffolder dry run
 `/project-init --plan` runs the identical interview and decision path, prints the complete plan — file tree, modules with the answer that decided each, gates/hooks/agents, local-stack choice, verify command — and stops without writing. P-04 applied to the scaffolder itself: the registry demanded preview/execute parity of every project while the scaffolder had no preview at all. Plan mode persists interview state, so a later real run resumes from the confirmed plan without re-asking (composes with 1.11.0). RETROFIT repos get `--plan` first by default.
 
