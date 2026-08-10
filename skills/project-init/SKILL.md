@@ -141,6 +141,30 @@ On approval, record the confirmed plan — mode and `decided_modules` — in `.c
 
 ---
 
+## Plan mode — dry run
+
+When invoked as `/project-init --plan`, or the user asks for a preview, a dry
+run, or "show me what this would do": run Steps 0–2 exactly as normal — same
+interview, same decisions, same confirmation table — then, instead of Step 3,
+print the complete plan and **stop without writing anything**:
+
+- the full file tree Step 3 would write, path by path
+- the modules included and skipped, with the interview answer that decided each
+- the gates, hooks, and agents that would be wired
+- the local-stack choice (single vs two-instance) and the verify command
+
+This is registry rule **P-04 applied to the scaffolder itself**: the plan is
+produced by the same decision path as a real run, output only — never a separate
+description that can drift from what execute would do. Anything the plan cannot
+state exactly, it must say so rather than approximate.
+
+Plan mode still persists interview state (`.claude/.init-state.json`), so a
+later real run resumes from the confirmed plan without re-asking a single
+question. On a RETROFIT repo, run `--plan` first by default and show the plan
+before proposing to execute.
+
+---
+
 ## Step 3 — Write the scaffold
 
 Read `references/scaffold-spec.md` for exact file contents and layout. After each file lands, append its path to `written_files` in `.claude/.init-state.json` — this is what makes an interrupted scaffold resumable. On resume, skip exactly the files recorded there; a file on disk but *not* recorded was interrupted mid-write — rewrite it. Write in this order:

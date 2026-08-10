@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.12.0 — A5: scaffolder dry run
+`/project-init --plan` runs the identical interview and decision path, prints the complete plan — file tree, modules with the answer that decided each, gates/hooks/agents, local-stack choice, verify command — and stops without writing. P-04 applied to the scaffolder itself: the registry demanded preview/execute parity of every project while the scaffolder had no preview at all. Plan mode persists interview state, so a later real run resumes from the confirmed plan without re-asking (composes with 1.11.0). RETROFIT repos get `--plan` first by default.
+
 ## 1.11.0 — A4: resumable interview
 `/project-init` was the longest single operation in the system — four interview rounds and ~30 file writes — with no persistence: an interruption lost everything and left a half-written directory.
 
