@@ -61,12 +61,10 @@ Nothing skips a stage; small work just moves through them fast. Full detail in `
 
 ## Install
 
+The kit lives at **`f4d/f4d-dev-env-configurator`** (private). Get a working copy:
+
 ```bash
-cd f4d-kit
-git init
-git add -A
-git commit -m "chore: f4d-kit v1.1.0"
-gh repo create <org>/f4d-kit --private --source=. --push
+gh repo clone f4d/f4d-dev-env-configurator
 ```
 
 Then in any project repo:
@@ -76,7 +74,7 @@ cd <project>
 claude
 ```
 
-`/plugin` → add marketplace → point at the `f4d-kit` repo → install.
+`/plugin` → add marketplace → point at `f4d/f4d-dev-env-configurator` → install.
 
 ---
 

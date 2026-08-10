@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.10.2
+- B-03 closed: the kit is published as `f4d/f4d-dev-env-configurator` (private). START_HERE, README install section, and the backlog now reference the real remote instead of instructing a push to a repo name that never existed. The plugin/product name remains `f4d-kit`; only repo-slug references changed.
+
 ## 1.10.1
 - Added `docs/BACKLOG.md` — every open finding, blocked item, registry debt entry, opportunity, and working agreement in resumable form. Each item carries why it matters, what to build, done-when criteria, and files touched, so work can be picked up cold without re-deriving the reasoning.
 
