@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-10 · **Version shipped:** 1.10.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-10 · **Version shipped:** 1.11.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -45,23 +45,17 @@
 
 Full reasoning in `docs/ARCHITECTURE_REVIEW.md`. Condensed to actionable form here.
 
-### A4 — Interview is not resumable · **high** · effort M · **DO FIRST**
+### A4 — Interview is not resumable · ✅ built in 1.11.0, acceptance test owed
 
-**Why:** `/project-init` runs 4 rounds and writes ~30 files in one pass — the longest
-operation in the system, no persistence. Interruption loses all state and leaves a
-half-written directory. Most likely thing to be abandoned halfway.
+Shipped 2026-08-10: Step 0 resume-or-discard (fail-loud on corrupt state),
+per-round persistence to `.claude/.init-state.json`, idempotent scaffold via
+`written_files`, delete-on-success only. Shape lives in `scaffold-spec.md`
+§ *Init state file*; ignored via `gitignore.tmpl`.
 
-**Build:**
-1. After each interview round, write answers to `.claude/.init-state.json`
-   (`{round, answers:{}, decided_modules:[], written_files:[]}`)
-2. On start, if the file exists: show what was answered, resume at the next round
-3. Make the scaffold step idempotent — check `written_files` and skip what exists
-4. On success, delete `.init-state.json`
-
-**Done when:** kill `/project-init` after Round 2, re-run, it resumes at Round 3
-without re-asking. Kill mid-scaffold, re-run, it completes without duplicating.
-
-**Files:** `skills/project-init/SKILL.md`, `skills/project-init/references/scaffold-spec.md`
+**Still owed — the live proof:** kill `/project-init` after Round 2, re-run, it
+resumes at Round 3 without re-asking. Kill mid-scaffold, re-run, it completes
+without duplicating. Needs an interactive run in a scratch repo. Until it runs,
+this is implemented, not proven.
 
 ---
 
@@ -200,7 +194,7 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 | O4 | Conformance suite: scaffold a throwaway project per module combo, assert verify passes on the empty scaffold | **The scaffolder is the least-tested component in a system whose premise is testing** |
 | O5 | Extract the doctrine (`silent-degradation`, `guards`, `capability-parity`) as a portable artifact | Most valuable content, least tool-coupled; survives a move off Claude Code |
 | O6 | Cross-project rule analytics | Fires everywhere → always-on. Never anywhere → delete. One repo only → local problem |
-| O2b | `/project-audit` asks the *unanswered* interview questions on an existing repo | Turns retrofit into a partial interview (depends on A4) |
+| O2b | `/project-audit` asks the *unanswered* interview questions on an existing repo | Turns retrofit into a partial interview (A4 built — unblocked) |
 
 ---
 
@@ -220,8 +214,8 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     A4   resumable interview          ← start here on code
-         A2   registry as manifest
+NEXT     A2   registry as manifest         ← start here on code
+         A4   live acceptance test (kill/re-run in a scratch repo)
          C-06 commitlint  ·  D-06 raw-SQL gate  ·  S-07 pure-fn lint   (all S, do together)
 
 SOON     A10  enforcement telemetry

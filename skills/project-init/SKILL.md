@@ -14,9 +14,21 @@ Detect mode by checking for `package.json`, `pyproject.toml`, `.git`, and existi
 
 ---
 
+## Step 0 — Resume check (always first)
+
+Check for `.claude/.init-state.json` before anything else — including mode detection.
+
+- **Absent** → fresh run. Proceed to Step 1.
+- **Present and parseable** → a previous init was interrupted. Show a compact summary — mode, rounds completed, answers given, files already written — and ask: **resume from the next step, or discard and start fresh?** Never silently re-ask what the file already answers, and never silently discard it.
+- **Present but unparseable** → say so loudly, show the raw contents, and ask discard-or-stop. Do not guess at partial state; a corrupt state file treated as valid re-runs the wrong half of the scaffold.
+
+Format and resume rules: `references/scaffold-spec.md` § *Init state file*.
+
+---
+
 ## Step 1 — Interview
 
-Ask in **four rounds**. Do not dump all questions at once. After each round, state what you've concluded so the user can correct you cheaply.
+Ask in **four rounds**. Do not dump all questions at once. After each round, state what you've concluded so the user can correct you cheaply — then persist the round's answers to `.claude/.init-state.json`. An interrupted interview resumes at the next round; it never restarts.
 
 Use `ask_user_input_v0` if available; otherwise ask as prose, one round per message.
 
@@ -125,11 +137,13 @@ LOCAL:     docker compose — postgres 16, mailpit, minio (R2-compatible)
 
 Ask: *"Anything to add or drop before I write it?"*
 
+On approval, record the confirmed plan — mode and `decided_modules` — in `.claude/.init-state.json`. A resume after this point skips straight to the scaffold.
+
 ---
 
 ## Step 3 — Write the scaffold
 
-Read `references/scaffold-spec.md` for exact file contents and layout. Write in this order:
+Read `references/scaffold-spec.md` for exact file contents and layout. After each file lands, append its path to `written_files` in `.claude/.init-state.json` — this is what makes an interrupted scaffold resumable. On resume, skip exactly the files recorded there; a file on disk but *not* recorded was interrupted mid-write — rewrite it. Write in this order:
 
 1. `.gitignore`, toolchain pins (`.python-version`, `packageManager`)
 2. `CLAUDE.md` — assembled from `templates/scaffold/CLAUDE.md.tmpl`, **kept under 80 lines**
@@ -152,7 +166,7 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Write in 
    - `.github/workflows/preflight.yml` — asserts required secrets exist before anything depends on them
    - Set the `SINGLE_INSTANCE` repo variable to `1` for single-instance projects, so the statelessness gate does not fire wrongly. A gate that fires wrongly gets disabled, and a disabled gate protects nothing.
    - Run `scripts/upgrade.py --apply` once at the end to record the framework baseline in `.claude/.framework-state.json`. Without it, the first upgrade cannot tell a local customization from a framework change.
-   - `.gitignore` entry for `.claude/.session-log` and `.claude/.last-verify` — local telemetry, not shared state
+   - `.gitignore` entries for `.claude/.session-log`, `.claude/.last-verify`, and `.claude/.init-state.json` — local telemetry and working state, not shared
    - `.github/pull_request_template.md` from `PR.template.md`
    - `docs/decisions/001-stack.md` — write the ADR for the stack chosen in this interview. The first decision is always the stack, and it is always worth recording.
 11. `README.md` — human-facing, distinct from CLAUDE.md
@@ -174,6 +188,8 @@ git log --oneline -1      # scaffold commit exists
 
 If the verify command fails on an empty scaffold, fix the scaffold — never loosen the check.
 
+When all three checks pass, delete `.claude/.init-state.json`. Success is the only thing that deletes it — a failed verify keeps the state so the run stays resumable.
+
 ---
 
 ## Step 5 — Report
@@ -186,6 +202,7 @@ Print the file tree written, the verify command, and **the three things the user
 
 - **Detect before asking.** Read `package.json`, `pyproject.toml`, existing dirs, and any current `CLAUDE.md`. Bring findings to Round 1 so the user is correcting, not typing.
 - **Never overwrite an existing `CLAUDE.md`.** Write `CLAUDE.md.proposed` and show a diff.
+- **`written_files` tracks only files this init run wrote.** Pre-existing repo files are governed by the retrofit rules above, never by the resume list — resuming must not turn "skip what we wrote" into "overwrite what was already there".
 - **Adopt existing conventions** over template defaults. If the repo uses `npm` and 4-space Python indents, the rules encode that. The framework is for consistency going forward, not for reformatting history.
 - **Run the verify command first.** If it fails on existing code, report the failures and ask whether to fix or to baseline them — do not silently weaken the config.
 - Ask additionally: *"What in this repo currently annoys you, or what does Claude keep getting wrong?"* Those answers become the most valuable rules in the file.

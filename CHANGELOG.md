@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.11.0 — A4: resumable interview
+`/project-init` was the longest single operation in the system — four interview rounds and ~30 file writes — with no persistence: an interruption lost everything and left a half-written directory.
+
+Now: answers persist to `.claude/.init-state.json` after every completed round, the confirmed plan is recorded at Step 2 approval, and every scaffold write appends to `written_files`. A new Step 0 detects existing state and offers resume-or-discard — with a fail-loud path for a corrupt state file (never guess at partial state). The scaffold is idempotent on resume: skip exactly what `written_files` records; on-disk-but-unrecorded means interrupted mid-write, so rewrite. In RETROFIT, the resume list governs only files the run wrote — the never-overwrite rules still own everything pre-existing. Success (Step 4 verification passing) is the only thing that deletes the state; interrupted and failed runs both keep it. The state file is gitignored via `gitignore.tmpl`; its shape lives in one place, `scaffold-spec.md` § *Init state file*.
+
+**Acceptance test still owed:** the kill-after-Round-2 / kill-mid-scaffold live re-run proof needs an interactive `/project-init` in a scratch repo. Until that runs, this is implemented-to-spec, not proven — same standard as any other guard.
+
 ## 1.10.2
 - B-03 closed: the kit is published as `f4d/f4d-dev-env-configurator` (private). START_HERE, README install section, and the backlog now reference the real remote instead of instructing a push to a repo name that never existed. The plugin/product name remains `f4d-kit`; only repo-slug references changed.
 

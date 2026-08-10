@@ -2,6 +2,37 @@
 
 Exact layout and content rules. Templates live in `${CLAUDE_PLUGIN_ROOT}/templates/`.
 
+## Init state file
+
+`.claude/.init-state.json` makes `/project-init` resumable. Written after each
+completed interview round, updated at plan confirmation and after every scaffold
+write, deleted only when Step 4 verification passes. Gitignored (in
+`gitignore.tmpl`) — local working state, never shared. This section is the single
+source for its shape; do not restate the fields elsewhere.
+
+```json
+{
+  "mode": "NEW",
+  "round": 2,
+  "answers": { "company": "F4 Digital", "backend_language": "typescript" },
+  "decided_modules": [],
+  "written_files": []
+}
+```
+
+- `mode` — `NEW` or `RETROFIT`, as confirmed with the user.
+- `round` — the last **completed** interview round (0–3). Plan confirmation (Step 2) sets it to `4`.
+- `answers` — question-key → answer, accumulated across rounds. Keys are short slugs; the value is the user's settled answer, not the raw reply.
+- `decided_modules` — empty until Step 2 approval, then the confirmed module list.
+- `written_files` — paths this init run has written, appended after each write.
+
+Resume rules:
+
+- Write state after a round completes, never mid-round.
+- Skip exactly the files in `written_files`. On disk but not recorded = interrupted mid-write → rewrite it; content is deterministic given `answers`.
+- In RETROFIT, `written_files` governs only files this run wrote — pre-existing files stay under the retrofit never-overwrite rules.
+- Delete the file only after Step 4 verification passes. Interrupted ≠ failed: both keep the state.
+
 ## Target layout (NEW mode)
 
 ```
