@@ -61,7 +61,7 @@ The failure class that survives review. Highest-value column in this file.
 | S-01 | Assert a collection is non-empty before asserting over it | TEST | **TEST** (`templates/tests/`) | done |
 | S-02 | Never render a raw identifier in user-visible output | TEST | **TEST** (`templates/tests/`) | done |
 | S-03 | `catch → []` passes every downstream "is anything missing" gate | TEST | **GATE** (`check_catch_empty`) | done |
-| S-04 | A new value/type/shape must fail a check, never degrade to a default | TEST | **TEST** (template: `assertNever` in `guard_tests.*`) | done |
+| S-04 | A new value/type/shape must fail a check, never degrade to a default | TEST | PROSE + template helper (`assertNever` ships, nothing requires its use) | eslint `switch-exhaustiveness-check` (TS) / mypy strict enum handling (py) wired into the scaffold verify |
 | S-05 | One canonical resolver per question — no two guess lists | GATE | PROSE | duplicate-constant-list scan in CI |
 | S-06 | Do not infer what the source already stated | JUDGMENT | PROSE | — |
 | S-07 | A pure function must not fetch | LINT | **GATE** (`check_pure_imports`) | done |

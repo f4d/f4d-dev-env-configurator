@@ -35,6 +35,8 @@ PATTERNS = [
     re.compile(r"catch\s*(?:\([^)]*\))?\s*\{[^{}]{0,240}?return\s+(?:\[\]|\{\}|null|undefined)\s*;?\s*\}"),
     # .catch(() => [])  /  .catch(e => null)
     re.compile(r"\.catch\(\s*(?:\([^)]*\)|\w+)?\s*=>\s*(?:\[\]|\{\}|null|undefined|\(\s*(?:\[\]|\{\})\s*\))\s*\)"),
+    # .catch(() => { return []; })  — block-bodied promise handler
+    re.compile(r"\.catch\(\s*(?:\([^)]*\)|\w+)?\s*=>\s*\{[^{}]{0,240}?return\s+(?:\[\]|\{\}|null|undefined)\s*;?\s*\}"),
     # python: except ...: up to 3 bounded statements, then return-empty
     re.compile(r"except[^:\n]*:\s*(?:#[^\n]*)?\n(?:\s+[^\n]{1,120}\n){0,3}?\s*return\s+(?:\[\]|\{\}|None|set\(\)|dict\(\)|list\(\))\s*(?:#|$|\n)"),
 ]

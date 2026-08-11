@@ -84,12 +84,16 @@ printf 'try { x() } catch (e) {\n  reportSwallowed("ctx", e);\n  return [];\n}\n
 ( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 red (A16): multi-statement catch ending in return-empty blocks" 1 $?
 echo 'const payload = await request.json().catch(() => null);' > "$T4/src/b.ts"
 ( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 green (A16): request-body parse idiom excluded" 0 $?
+printf 'const x = await load().catch(() => {\n  return [];\n});\n' > "$T4/src/b.ts"
+( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 red: BLOCK-BODIED promise catch blocks" 1 $?
 rm -rf "$T4"
 
 # ---------- O-05 check_log_hygiene ----------
 T5="$(mktemp -d)"; ( cd "$T5" && git init -q ) && mkdir -p "$T5/src"
 echo 'console.log("incoming", req.body);' > "$T5/src/h.ts"
 ( cd "$T5" && python3 "$KIT/scripts/check_log_hygiene.py" >/dev/null 2>&1 ); check "O-05 red: logging req.body blocks" 1 $?
+printf 'console.log(\n  "incoming",\n  req.body\n);\n' > "$T5/src/h.ts"
+( cd "$T5" && python3 "$KIT/scripts/check_log_hygiene.py" >/dev/null 2>&1 ); check "O-05 red: MULTILINE log call blocks" 1 $?
 printf '// log-ok: logs the redacted summary only\nconsole.log("incoming", req.body.summary);\n' > "$T5/src/h.ts"
 ( cd "$T5" && python3 "$KIT/scripts/check_log_hygiene.py" >/dev/null 2>&1 ); check "O-05 green: annotated-with-reason passes" 0 $?
 echo 'console.log("processed", count);' > "$T5/src/h.ts"
@@ -99,7 +103,7 @@ rm -rf "$T5"
 # ---------- C-08 check_test_count ----------
 T6="$(mktemp -d)"
 ( cd "$T6" && git init -q && git config user.email t@t && git config user.name t \
-  && mkdir tests && printf 'def test_a():\n    pass\ndef test_b():\n    pass\n' > tests/test_x.py \
+  && mkdir tests && printf 'async def test_a():\n    pass\ndef test_b():\n    pass\n' > tests/test_x.py \
   && git add -A && git commit -qm "chore: two tests" && git branch -M main && git checkout -q -b feat \
   && printf 'def test_a():\n    pass\n' > tests/test_x.py )
 ( cd "$T6" && BASE_REF=main python3 "$KIT/scripts/check_test_count.py" >/dev/null 2>&1 ); check "C-08 red: test deletion blocks" 1 $?

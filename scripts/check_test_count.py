@@ -19,7 +19,7 @@ import subprocess
 import sys
 
 TEST_FILE = re.compile(r"(^|/)tests?/|(^|/)test_[^/]+\.py$|[._][a-z]*test[a-z]*\.[jt]sx?$|\.spec\.[jt]sx?$|_test\.py$", re.I)
-CASE = re.compile(r"^\s*def test_|(?<![.\w])(?:it|test)\s*\(", re.M)
+CASE = re.compile(r"^\s*(?:async\s+)?def test_|(?<![.\w])(?:it|test)\s*\(", re.M)
 
 
 def count_at(ref):
@@ -61,7 +61,15 @@ def main():
     if not base:
         print("check_test_count: NOTE — BASE_REF unset; no baseline to compare against (C-08 is a CI gate).")
         return 0
-    before, after = count_at(base), count_worktree()
+    # Compare from the MERGE BASE, not the base tip: tests added to the target
+    # branch after this PR branched are not this PR's deletions.
+    try:
+        mb = subprocess.run(["git", "merge-base", base, "HEAD"],
+                            capture_output=True, text=True, check=True).stdout.strip()
+    except subprocess.CalledProcessError:
+        mb = base
+        print(f"check_test_count: NOTE — merge-base with {base} unresolved; comparing against the tip.")
+    before, after = count_at(mb), count_worktree()
     if after >= before:
         print(f"check_test_count: OK — tests {before} -> {after} (C-08).")
         return 0

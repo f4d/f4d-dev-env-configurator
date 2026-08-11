@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.22.2 — round-7 review fixes; S-04 honestly re-opened
+Seven findings, all real. The one that matters most is a reversal: **S-04 goes back to tracked debt** — shipping an `assertNever` helper nobody is required to import enforces nothing, and marking it done was scoreboard inflation; its promote-when is now eslint `switch-exhaustiveness-check` / mypy strict-enum integration in the scaffold verify (44 enforced, 8 debts — the honest numbers). Recall fixes, re-measured on GHL-MCP: block-bodied promise catches (`.catch(() => { return []; })`) now caught (62→64) and log-hygiene scans complete multiline calls (1→5 — a formatter putting `req.body` on the next line no longer hides it). Correctness fixes: C-08 counts `async def test_` and compares from the **merge base** (tests added to main after branching are not the PR's deletions); G-05 enumerates baseline fixture paths so an outright-deleted fixture file is the strongest case removal, not an invisible one; the conformance MANDATED list includes the three newest gate scripts.
+
+
 ## 1.22.1 — A16: catch-empty gate tuned by measurement
 The GHL-MCP re-audit measured the S-03 gate against reality: 147 raw findings, 93 of them the `request.json().catch(() => null)` body-parse idiom the original agent sweep excluded by judgment, and the flagship live sites (multi-statement catches — `reportSwallowed(...); return []`) missed by the return-first pattern. Both fixed: the body-parse idiom is excluded by design (a gate flagging 93 legitimate guards is a gate that gets disabled — A8), and the brace pattern now requires return-empty to *end* the block rather than start it. Re-measured post-fix: **62 findings, zero idiom noise, the F4 family caught mechanically**. Constructor-wrapped empties remain judgment and are documented as such. A17 filed: the guess-list gate is blind to object-member lists (the six-file `CUSTOM_OBJECTS` case).
 

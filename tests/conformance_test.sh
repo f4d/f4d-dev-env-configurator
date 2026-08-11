@@ -111,6 +111,9 @@ scripts/check_statelessness.py
 scripts/check_commits.py
 scripts/check_raw_sql.py
 scripts/check_pure_imports.py
+scripts/check_catch_empty.py
+scripts/check_log_hygiene.py
+scripts/check_test_count.py
 scripts/upgrade.py
 scripts/render_registry.py
 scripts/session_report.py
