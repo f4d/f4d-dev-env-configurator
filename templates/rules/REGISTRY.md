@@ -37,7 +37,7 @@ promote-when trigger. `JUDGMENT` is a finished state.
 | C-03 | No destructive SQL from an agent session | HOOK | **HOOK** | done |
 | C-04 | Verify passes before every commit | HOOK | **HOOK** (`done-check`) | done |
 | C-05 | One canonical home per concept — no `V2`/`-final` variants | HOOK | **HOOK** (`rule-zero`) | done |
-| C-06 | Branch per unit of work, conventional commits | LINT | PROSE | commitlint in CI — trivial, do it |
+| C-06 | Branch per unit of work, conventional commits | LINT | **GATE** (`check_commits`) | done |
 | C-07 | Change the smallest surface that solves the problem | JUDGMENT | JUDGMENT | — |
 | C-08 | Never delete a test to make a build pass | TEST | PROSE | test-count-decrease check in CI |
 
@@ -63,7 +63,7 @@ The failure class that survives review. Highest-value column in this file.
 | S-04 | A new value/type/shape must fail a check, never degrade to a default | TEST | PROSE | exhaustiveness check at every enum boundary |
 | S-05 | One canonical resolver per question — no two guess lists | GATE | PROSE | duplicate-constant-list scan in CI |
 | S-06 | Do not infer what the source already stated | JUDGMENT | PROSE | — |
-| S-07 | A pure function must not fetch | LINT | PROSE | lint rule: no IO import in `pure/` |
+| S-07 | A pure function must not fetch | LINT | **GATE** (`check_pure_imports`) | done |
 | S-08 | Cross-check load-bearing numbers against a second source | JUDGMENT | PROSE + DoD | — |
 | S-09 | Account data read live; contract data may be a labelled constant | JUDGMENT | PROSE | — |
 
@@ -86,7 +86,7 @@ The failure class that survives review. Highest-value column in this file.
 | D-03 | No drop/rename in the release that stops writing | GATE | **GATE** | done |
 | D-04 | Money columns are `numeric`, never float | GATE | **GATE** | done |
 | D-05 | Migrations reversible, or documented as not | TEST | **TEST** (`rollback_test`) | done |
-| D-06 | No raw SQL in route handlers | LINT | PROSE | grep gate — cheap, do it |
+| D-06 | No raw SQL in route handlers | LINT | **GATE** (`check_raw_sql`) | done |
 
 ## Integrations
 

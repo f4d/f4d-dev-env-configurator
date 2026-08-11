@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   checks:
-    name: "registry gates — fixtures, contract, guess-lists, rollback, statelessness"
+    name: "registry gates — fixtures, contract, guess-lists, rollback, statelessness, commits, raw-sql, pure-imports"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +42,10 @@ jobs:
           PR_BODY="${{ github.event.pull_request.body }}" \
             run check_rollback.py      # O-02 O-03 D-05
           run check_statelessness.py   # ST-01..ST-07
+          BASE_REF=origin/${{ github.base_ref }} \
+            run check_commits.py       # C-06
+          run check_raw_sql.py         # D-06
+          run check_pure_imports.py    # S-07
           exit $fail
 
   hooks:
