@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.22.1 — A16: catch-empty gate tuned by measurement
+The GHL-MCP re-audit measured the S-03 gate against reality: 147 raw findings, 93 of them the `request.json().catch(() => null)` body-parse idiom the original agent sweep excluded by judgment, and the flagship live sites (multi-statement catches — `reportSwallowed(...); return []`) missed by the return-first pattern. Both fixed: the body-parse idiom is excluded by design (a gate flagging 93 legitimate guards is a gate that gets disabled — A8), and the brace pattern now requires return-empty to *end* the block rather than start it. Re-measured post-fix: **62 findings, zero idiom noise, the F4 family caught mechanically**. Constructor-wrapped empties remain judgment and are documented as such. A17 filed: the guess-list gate is blind to object-member lists (the six-file `CUSTOM_OBJECTS` case).
+
+
 ## 1.22.0 — the last registry debt promoted; round-6 review fixes
 **Every remaining global PROSE row is now enforced** (45 mechanically enforced, 7 project-conditional debts left): S-03 `check_catch_empty` (the catch-returns-empty trap the live audit found shipping raw IDs as report data), O-05 `check_log_hygiene` (payload/credential-shaped identifiers in log calls), C-08 `check_test_count` (repo-wide test-count decrease vs BASE_REF needs a stated `test-removal-ok` reason), G-05 fixture case-diff **implemented inside `check_fixtures`, whose docstring had claimed it for months** — the registry-honesty defect in the checker itself, now true — and S-04 `assertNever`/`assert_never` exhaustiveness helpers in both guard-test templates. All wired into `gates.yml`, all with red-then-green proofs and reasoned annotation escapes.
 

@@ -8,9 +8,11 @@ missing?" gate passes vacuously, and the outage ships as plausible data.
 Proven live: a failed pipeline fetch published raw IDs as report rows, a
 failed tag fetch drove duplicate tag creation (GHL-MCP audit F3–F5).
 
-Escape hatch: annotate the catch line (or the line above)
-`catch-empty-ok: <reason>` — a reason is required; the legitimate cases
-(body-parse guards whose null is explicitly handled) deserve one sentence.
+Known-idiom exclusion (A16, measured on the GHL-MCP re-audit): request-body
+parse guards — `request.json().catch(() => null)` and kin — are excluded
+outright; their null is the documented contract of the guard, and flagging 93
+of them in one repo is how a gate gets disabled (A8). Everything else needs
+the annotation: `catch-empty-ok: <reason>`, reason required.
 
 Exclusions: test files and fixture dirs. Not-applicable is stated, never
 silent. Exit 1 on any violation.
@@ -25,13 +27,16 @@ from _common import repo_root  # noqa: E402
 SKIP = (".git", "node_modules", ".venv", "dist", "build", ".next", "fixtures", "__fixtures__", "testdata")
 EXT = (".py", ".ts", ".tsx", ".js", ".jsx")
 TESTY = re.compile(r"(^|[._-])test|spec\.|^tests?$")
+IDIOM = re.compile(r"(?:request|response|req|res)\.json\(\)\s*\.catch\(")
 PATTERNS = [
-    # catch (e) { return [] }  /  catch { return null }  — brace body, first statement
-    re.compile(r"catch\s*(?:\([^)]*\))?\s*\{\s*(?://[^\n]*\n\s*)?return\s+(?:\[\]|\{\}|null|undefined)\s*[;}\n]"),
+    # catch (e) { ...bounded statements...; return [] } — the return-empty must
+    # END the block; statements before it are allowed (A16: the flagship live
+    # sites called reportSwallowed(...) first and escaped the return-first form).
+    re.compile(r"catch\s*(?:\([^)]*\))?\s*\{[^{}]{0,240}?return\s+(?:\[\]|\{\}|null|undefined)\s*;?\s*\}"),
     # .catch(() => [])  /  .catch(e => null)
     re.compile(r"\.catch\(\s*(?:\([^)]*\)|\w+)?\s*=>\s*(?:\[\]|\{\}|null|undefined|\(\s*(?:\[\]|\{\})\s*\))\s*\)"),
-    # python: except ...: return [] / {} / None / set() / dict() / list()
-    re.compile(r"except[^:\n]*:\s*(?:#[^\n]*)?\n\s*return\s+(?:\[\]|\{\}|None|set\(\)|dict\(\)|list\(\))\s*(?:#|$|\n)"),
+    # python: except ...: up to 3 bounded statements, then return-empty
+    re.compile(r"except[^:\n]*:\s*(?:#[^\n]*)?\n(?:\s+[^\n]{1,120}\n){0,3}?\s*return\s+(?:\[\]|\{\}|None|set\(\)|dict\(\)|list\(\))\s*(?:#|$|\n)"),
 ]
 OK = re.compile(r"catch-empty-ok:\s*(\S.*)?")
 
@@ -55,6 +60,8 @@ def main():
                 for m in pat.finditer(content):
                     i = content.count("\n", 0, m.start())
                     line = lines[i] if i < len(lines) else ""
+                    if IDIOM.search(line):
+                        continue  # body-parse guard idiom — excluded by design (A16)
                     ann = OK.search(line) or (OK.search(lines[i - 1]) if i else None)
                     if ann:
                         if not (ann.group(1) or "").strip():

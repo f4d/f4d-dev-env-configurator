@@ -80,6 +80,10 @@ printf 'try:\n    x()\nexcept ValueError:\n    return []\n' > "$T4/src/a.py"; rm
 ( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 red: python except-return-empty blocks" 1 $?
 printf 'try:\n    x()\nexcept ValueError:  # catch-empty-ok: body-parse guard, null handled at the call site\n    return []\n' > "$T4/src/a.py"
 ( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 green: annotated-with-reason passes" 0 $?
+printf 'try { x() } catch (e) {\n  reportSwallowed("ctx", e);\n  return [];\n}\n' > "$T4/src/b.ts"; rm "$T4/src/a.py"
+( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 red (A16): multi-statement catch ending in return-empty blocks" 1 $?
+echo 'const payload = await request.json().catch(() => null);' > "$T4/src/b.ts"
+( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 green (A16): request-body parse idiom excluded" 0 $?
 rm -rf "$T4"
 
 # ---------- O-05 check_log_hygiene ----------

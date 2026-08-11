@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.22.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.22.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -23,7 +23,7 @@
 | Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | 119 | hooks (40) + render_registry (11) + gate_trio (35) + statelessness (4) + conformance (29), all passing |
+| Tests | 121 | hooks (40) + render_registry (11) + gate_trio (37) + statelessness (4) + conformance (29), all passing |
 
 **Rule status:** 45 mechanically enforced · 7 tracked debt with triggers · 13 judgment · rest scaffold/agent.
 
@@ -125,6 +125,21 @@ phrase exactly. Auto-load holds on the deployed CLI.
 injection stays as redundant defense-in-depth for older CLIs and
 `--setting-sources` exclusions, and is never to be cited as the reason rules
 load. All doctrine sites updated with the evidence.
+
+---
+
+### A17 — guess-list gate misses object-member lists · **low** · effort S
+
+**Why:** re-audit measurement (2026-08-11) — `check_guess_lists` matches
+string-literal collections only; GHL-MCP's six-file `CUSTOM_OBJECTS`
+replication (object members with repeated key values) passes clean. The
+highest-value S-05 instance found by agents is invisible to the S-05 gate.
+
+**Build:** extend the heuristic to object-array literals — fingerprint on the
+sorted values of a recurring key (e.g. `objectKey`) across 2+ files. Red-green
+against the GHL-MCP pattern.
+
+**Files:** `scripts/check_guess_lists.py`
 
 ---
 
