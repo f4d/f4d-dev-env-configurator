@@ -39,10 +39,13 @@ def load_state(base):
     return json.load(open(p)) if os.path.exists(p) else {"version": None, "files": {}}
 
 
-def save_state(base, version, files):
+def save_state(base, version, files, registry_ids=None):
     p = os.path.join(base, STATE)
     os.makedirs(os.path.dirname(p), exist_ok=True)
-    json.dump({"version": version, "files": files}, open(p, "w"), indent=2, sort_keys=True)
+    payload = {"version": version, "files": files}
+    if registry_ids is not None:
+        payload["registry_ids"] = sorted(registry_ids)
+    json.dump(payload, open(p, "w"), indent=2, sort_keys=True)
 
 
 def plugin_version(plugin):
@@ -91,30 +94,40 @@ def classify(base, plugin, state):
     return rows
 
 
-def manifest_report(base, plugin):
+def manifest_report(base, plugin, state):
     """A2 step 5 — reconcile the project's rule manifest against the plugin registry.
 
-    New plugin rules surface as candidates (adoption is a decision, not a sync);
-    a manifest ID missing from the registry is a broken reference (A9) and is
-    returned so the caller can fail the run.
+    Uses the SAME complete validation as render_registry --validate (a manifest
+    the audit rejects must never pass an upgrade). NEW candidates are rules
+    added to the plugin registry SINCE THE RECORDED BASELINE — not every unheld
+    rule, which would report the same dozens forever. Returns the problem list
+    so the caller can fail the run.
     """
     mpath = os.path.join(base, ".claude", "rules", "manifest.json")
     if not os.path.exists(mpath):
         return []
-    from render_registry import load_manifest, parse_registry  # single source (S-05)
+    from render_registry import load_manifest, manifest_problems, parse_registry  # single source (S-05)
     rules, overrides = load_manifest(mpath)
     _, by_id = parse_registry(os.path.join(plugin, "templates", "rules", "REGISTRY.md"))
-    broken = [r for r in rules if r not in by_id]
-    new = sorted(set(by_id) - set(rules))
+    problems = manifest_problems(rules, overrides, by_id)
     print()
     print(f"registry manifest   {len(rules)} rules held, {len(overrides)} override(s)")
-    if broken:
-        print(f"  BROKEN     manifest references unknown ID(s): {', '.join(broken)}")
-        print("             IDs are permanent (A9) — the manifest or the plugin version is wrong. Fix first.")
-    if new:
-        print(f"  NEW rules  in the plugin registry, not held by this project: {', '.join(new)}")
-        print("             Review each against this project — adoption is a decision, not a sync.")
-    return broken
+    for p in problems:
+        print(f"  BROKEN     {p}")
+    if problems:
+        print("             Fix the manifest before anything else (A9: IDs are permanent).")
+
+    baseline_ids = state.get("registry_ids")
+    if baseline_ids is None:
+        unheld = sorted(set(by_id) - set(rules))
+        print(f"  NOTE       no registry baseline recorded yet — cannot tell new rules from")
+        print(f"             deliberately-unheld ones ({len(unheld)} unheld total). --apply records the baseline.")
+    else:
+        new = sorted(set(by_id) - set(baseline_ids))
+        if new:
+            print(f"  NEW rules  added to the plugin registry since the recorded baseline: {', '.join(new)}")
+            print("             Review each against this project — adoption is a decision, not a sync.")
+    return problems
 
 
 def main():
@@ -146,7 +159,7 @@ def main():
     print()
     print("  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
 
-    broken_refs = manifest_report(base, args.plugin)
+    broken_refs = manifest_report(base, args.plugin, state)
 
     if counts.get("CONFLICT"):
         print()
@@ -175,7 +188,13 @@ def main():
             d = digest(os.path.join(base, rel))
             if d:
                 files[rel] = d
-    save_state(base, newver, files)
+    try:
+        from render_registry import parse_registry
+        _, by_id = parse_registry(os.path.join(args.plugin, "templates", "rules", "REGISTRY.md"))
+        registry_ids = list(by_id)
+    except SystemExit:
+        registry_ids = state.get("registry_ids")
+    save_state(base, newver, files, registry_ids)
 
     print()
     print(f"Wrote {len(written)} file(s). Baseline recorded at {newver}.")

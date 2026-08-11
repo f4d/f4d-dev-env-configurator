@@ -40,6 +40,7 @@ promote-when trigger. `JUDGMENT` is a finished state.
 | C-06 | Branch per unit of work, conventional commits | LINT | **GATE** (`check_commits`) | done |
 | C-07 | Change the smallest surface that solves the problem | JUDGMENT | JUDGMENT | — |
 | C-08 | Never delete a test to make a build pass | TEST | PROSE | test-count-decrease check in CI |
+| C-09 | No destructive filesystem commands from an agent session | HOOK | **HOOK** | done |
 
 ## Guards
 
@@ -108,6 +109,16 @@ The failure class that survives review. Highest-value column in this file.
 | K-02 | Consumers pin a contract version | GATE | **GATE** (`check_contract_pin`) | done |
 | K-03 | No consumer more than one major behind | GATE | **GATE** | done |
 | K-04 | Shared shape changes start in the contract repo | JUDGMENT | PROSE | — |
+
+## Keysafety
+
+Enforced by `guard.sh` since 1.0; unregistered until 1.18.0 — surfaced by the
+A10 fire log's `UNREGISTERED` bucket, which exists to catch exactly this.
+
+| ID | Rule | Should be | Today | Promote when |
+|---|---|---|---|---|
+| KS-01 | No transaction broadcasting from an agent session | HOOK | **HOOK** | done |
+| KS-02 | No mainnet RPC from an agent session — local or forked chains only | HOOK | **HOOK** | done |
 
 ## Money
 

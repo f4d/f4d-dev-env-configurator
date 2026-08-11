@@ -81,6 +81,27 @@ def parse_registry(path):
     return sections, by_id
 
 
+def manifest_problems(rules, overrides, by_id):
+    """The COMPLETE manifest-reference validation, as a list of problems.
+
+    Single source (S-05): render/--validate and upgrade.py reconciliation must
+    reject exactly the same manifests — a manifest the audit rejects must never
+    pass an upgrade.
+    """
+    problems = []
+    unknown = [r for r in rules if r not in by_id]
+    if unknown:
+        problems.append(f"manifest references unknown rule ID(s): {', '.join(unknown)} — "
+                        "IDs are permanent; a missing one means the manifest or the plugin version is wrong")
+    dupes = {r for r in rules if rules.count(r) > 1}
+    if dupes:
+        problems.append(f"manifest lists ID(s) more than once: {', '.join(sorted(dupes))}")
+    bad_overrides = [r for r in overrides if r not in rules]
+    if bad_overrides:
+        problems.append(f"override(s) on rule(s) the project does not hold: {', '.join(sorted(bad_overrides))}")
+    return problems
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--manifest", default=".claude/rules/manifest.json")
@@ -93,16 +114,8 @@ def main():
     rules, overrides = load_manifest(args.manifest)
     sections, by_id = parse_registry(os.path.join(args.plugin, "templates", "rules", "REGISTRY.md"))
 
-    unknown = [r for r in rules if r not in by_id]
-    if unknown:
-        die(f"manifest references unknown rule ID(s): {', '.join(unknown)} — "
-            "IDs are permanent; a missing one means the manifest or the plugin version is wrong")
-    dupes = {r for r in rules if rules.count(r) > 1}
-    if dupes:
-        die(f"manifest lists ID(s) more than once: {', '.join(sorted(dupes))}")
-    bad_overrides = [r for r in overrides if r not in rules]
-    if bad_overrides:
-        die(f"override(s) on rule(s) the project does not hold: {', '.join(sorted(bad_overrides))}")
+    for problem in manifest_problems(rules, overrides, by_id):
+        die(problem)
 
     if args.validate:
         print(f"render_registry: OK — {len(rules)} rules, {len(overrides)} overrides, all IDs resolve.")

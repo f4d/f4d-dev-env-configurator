@@ -35,6 +35,10 @@ IMPORT = re.compile(
 )
 # 'pg', 'mysql2', 'fs', 'http', 'https' matched exactly to avoid false hits on longer names.
 EXACT_MODULES = re.compile(r"""(?:from\s+['"]|import\s+['"]|require\(\s*['"])(pg|mysql2?|fs|http|https|net)['"]""")
+# Python filesystem/IO entry points: statement-level imports plus the bare
+# builtin open() call — file IO needs no import at all in Python.
+PY_IO_IMPORT = re.compile(r"^\s*(?:import|from)\s+(os|pathlib|shutil|tempfile|io|glob)\b")
+OPEN_CALL = re.compile(r"""(?<![.\w])open\s*\(""")
 FETCH_CALL = re.compile(r"""(?<![.\w])fetch\s*\(""")
 OK = re.compile(r"pure-io-ok:\s*(\S.*)?")
 
@@ -53,8 +57,10 @@ def main():
             rel = os.path.relpath(path, base)
             scanned += 1
             lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
+            is_py = name.endswith(".py")
             for i, line in enumerate(lines):
-                hit = IMPORT.search(line) or EXACT_MODULES.search(line) or FETCH_CALL.search(line)
+                hit = (IMPORT.search(line) or EXACT_MODULES.search(line) or FETCH_CALL.search(line)
+                       or (is_py and (PY_IO_IMPORT.search(line) or OPEN_CALL.search(line))))
                 if not hit:
                     continue
                 ann = OK.search(line) or (OK.search(lines[i - 1]) if i else None)

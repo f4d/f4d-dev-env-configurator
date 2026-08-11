@@ -10,8 +10,8 @@ in the evidence log below.
 | A4-1: kill after Round 2 → resume at Round 3, nothing re-asked | **MET** — Step 0 schema check passed, summary shown, interview resumed at Round 3 |
 | A4-2: kill mid-scaffold → resume completes without duplicating | **MET** — 6 pre-kill files byte-identical (SHA-verified) after resume; 13 remaining written; 19 total |
 | Commit-step re-entry (1.13.1 regression) | **MET** — `phases.scaffold_commit` recorded; re-entry skips |
-| Delete-on-success only | **MET** — state survived both kills; deleted only after the Step-4 subset passed |
-| P-04: plan matches execution | **MET** — predeclared plan file-list vs `git ls-files`: identical |
+| Delete-on-success only | **Exercised against the runnable subset** — state survived both kills; deleted only after the subset passed. Full-Step-4 deletion discipline (a real failing verify must keep the state) is owed in O4 |
+| P-04: plan matches execution | **MET over the exercised subset** — predeclared plan file-list vs `git ls-files`: identical. Reviewed 2026-08-11: the subset omitted spec-mandated outputs (verify/gates/preflight workflows, issue templates, guard test templates, PR template, `.framework-state.json` baseline), so full-spec parity is owed in O4 |
 | A2 manifest in a scaffold | first live exercise — 22-rule manifest written and validated against the plugin registry |
 
 ## Honest bounds

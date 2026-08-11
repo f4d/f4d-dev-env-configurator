@@ -17,8 +17,9 @@ if [ -z "$cmd" ] && hook_parse_failed "$input"; then
 fi
 [ -z "$cmd" ] && exit 0
 
-# deny <rule-id> <message>. UNREGISTERED = the guard enforces something the
-# registry holds no row for — a registry-honesty gap, logged as itself.
+# deny <rule-id> <message>. If a deny ever needs the id UNREGISTERED, that is
+# a registry-honesty gap: give the rule a row (IDs are permanent, A9) before
+# shipping the deny — the fire report flags UNREGISTERED loudly for a reason.
 deny() { log_deny "$1" "$cmd"; echo "BLOCKED by f4d-kit [$1]: $2" >&2; exit 2; }
 
 shopt -s nocasematch
@@ -30,11 +31,11 @@ case "$cmd" in
   *"PRIVATE_KEY"*|*"SECRET_KEY"*|*"_TOKEN="*|*"API_KEY="*)
       deny "C-01" "never interpolate a credential into a command. Reference the env var by name." ;;
   *"--broadcast"*)
-      deny "UNREGISTERED" "no transaction broadcasting from an agent session. Use anvil or a fork." ;;
+      deny "KS-01" "no transaction broadcasting from an agent session. Use anvil or a fork." ;;
   *"mainnet"*|*"infura.io"*|*"alchemy.com"*|*"polygon-rpc.com"*)
-      deny "UNREGISTERED" "no mainnet RPC in an agent session. Use a local or forked chain." ;;
+      deny "KS-02" "no mainnet RPC in an agent session. Use a local or forked chain." ;;
   *"rm -rf /"*|*"rm -rf ~"*|*":(){"*)
-      deny "UNREGISTERED" "destructive command." ;;
+      deny "C-09" "destructive command." ;;
   *"DROP DATABASE"*|*"TRUNCATE"*|*"drop schema"*)
       deny "C-03" "destructive database operation. Use a migration, or scripts/dev-reset.sh locally." ;;
   *"git push --force"*|*"push -f "*)

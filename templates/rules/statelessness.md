@@ -82,6 +82,18 @@ declaration `stateless-ok import-time registration — <who registers>`.
 The boundary, and it is sharp: the moment any handler, request path, or
 runtime event calls the register function, this is real ST-01 — the scanner
 cannot see call-site timing across files, so **the annotation is a claim a
-reviewer verifies**, exactly like every other `stateless-ok`. When you annotate,
-grep the register function's call sites and confirm all of them are module
-top level; cite that in the reason.
+reviewer verifies**, exactly like every other `stateless-ok`. The claim has TWO
+halves and the reason must cite both: (1) every register call site is module
+top level, and (2) every registering module is **eagerly and unconditionally
+imported at startup on every instance** — a registration module that is lazy-
+or dynamically imported from a request handler is still "top level"
+syntactically, but only the instance that served the request populates its
+registry, which is exactly the drift this gate exists to prevent.
+
+**Who does this work — and it is not the user.** The agent writing the
+annotation runs both checks in-session (a grep and an import-path trace,
+seconds of work) and pastes the evidence into the reason. `/project-audit`
+re-runs the call-site grep on every audit and flags any annotation whose
+evidence no longer holds. The human's role is the decision when a discrepancy
+surfaces — never the legwork. An annotation protocol that assumes a person
+runs terminal commands is a protocol that stops being followed.

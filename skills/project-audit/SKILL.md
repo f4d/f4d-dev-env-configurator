@@ -72,7 +72,7 @@ If there is no log yet, do not wait for one. Say so, and fall back to the static
 checks below — they are available immediately.
 
 **Enforcement layer** — check this before anything else
-- Is `SessionStart` wired in `.claude/settings.json`? (Doctrine corrected twice, 2026-08-11 — current truth per the Claude Code memory docs: `CLAUDE.md` auto-loads with an upward walk AND unscoped `.claude/rules/*.md` auto-load at launch. On current CLI versions the hook is **not** what puts rules in context; treat its absence as a **telemetry gap** — no `.claude/.session-log` means no evidence layer for fire counts and session starts (A15 decided: telemetry is the hook's primary job; loading is automatic on current CLIs, verified empirically on 2.1.220).) Verify actual loading with `/context`, not inference.
+- Is `SessionStart` wired in `.claude/settings.json`? (Doctrine corrected twice, 2026-08-11 — current truth per the Claude Code memory docs: `CLAUDE.md` auto-loads with an upward walk AND unscoped `.claude/rules/*.md` auto-load at launch. On current CLI versions the hook is **not** what puts rules in context; treat its absence as losing **session-START records specifically** — the per-session denominator for rates. Deny fire counts still accrue independently (`guard.sh`/`rule-zero.sh` write `.claude/.enforcement-log` regardless), and `verify-record.sh` still writes verify entries to `.session-log`. (A15 decided: session-start telemetry is this hook's primary job; loading is automatic on current CLIs, verified empirically on 2.1.220.)) Verify actual loading with `/context`, not inference.
 - Are `rule-zero.sh` and `done-check.sh` wired?
 - For each rule in `.claude/rules/`, ask: is this mechanically enforceable, and is it enforced? List every enforceable-but-prose rule. That list is the real audit finding.
 - Are there near-duplicate files suggesting Rule 0 was not in force — `*V2`, `*-final`, `*-new`, `*-copy`, `*-updated`?
@@ -110,6 +110,7 @@ checks below — they are available immediately.
 - Do migrations run at app boot? That is a deploy-time race, not a startup convenience.
 - Is there at least one test that writes on one instance and reads on another?
 - Any `stateless-ok` annotation without a reason after it
+- Every `stateless-ok import-time registration` annotation: **re-verify the claim** — re-grep the register function's call sites; any non-top-level or handler-reachable call site (including a lazy/dynamic import of the registering module) invalidates the annotation. Report it; never trust an annotation whose evidence no longer holds. This re-verification is the audit's job, not the user's.
 
 **Code-level spot checks**
 - Any test that calls a live external API

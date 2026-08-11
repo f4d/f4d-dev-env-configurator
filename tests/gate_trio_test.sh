@@ -38,6 +38,9 @@ printf '// raw-sql-ok:\nconst q = `SELECT id, name FROM users WHERE id = 1`;\n' 
 echo 'const m = `SELECT x FROM y`;' > "$T2/src/db/migration.ts"
 rm "$T2/src/routes/dirty.ts"
 ( cd "$T2" && python3 "$KIT/scripts/check_raw_sql.py" >/dev/null 2>&1 ); check "D-06 green: db/ layer excluded" 0 $?
+printf 'const q = `\n  SELECT id, name\n  FROM users\n  WHERE id = 1`;\n' > "$T2/src/routes/multiline.ts"
+( cd "$T2" && python3 "$KIT/scripts/check_raw_sql.py" >/dev/null 2>&1 ); check "D-06 red: MULTILINE template literal blocks" 1 $?
+rm "$T2/src/routes/multiline.ts"
 T2b="$(mktemp -d)"; ( cd "$T2b" && git init -q && mkdir lib && python3 "$KIT/scripts/check_raw_sql.py" 2>&1 | grep -q "NOTE" ); check "D-06 states not-applicable (A8)" 0 $?
 rm -rf "$T2" "$T2b"
 
@@ -57,6 +60,13 @@ printf '# pure-io-ok: boundary shim being extracted, tracked in BACKLOG\nimport 
 ( cd "$T3" && python3 "$KIT/scripts/check_pure_imports.py" >/dev/null 2>&1 ); check "S-07 green: annotated-with-reason passes" 0 $?
 echo 'const prefetchAll = (xs) => xs.map(prefetch);' > "$T3/src/pure/nofalse.ts"; rm "$T3/src/pure/leak.py"
 ( cd "$T3" && python3 "$KIT/scripts/check_pure_imports.py" >/dev/null 2>&1 ); check "S-07 green: 'prefetch(' not a false positive" 0 $?
+echo 'from pathlib import Path' > "$T3/src/pure/fsleak.py"
+( cd "$T3" && python3 "$KIT/scripts/check_pure_imports.py" >/dev/null 2>&1 ); check "S-07 red: python pathlib import blocks" 1 $?
+echo 'data = open("x.json").read()' > "$T3/src/pure/fsleak.py"
+( cd "$T3" && python3 "$KIT/scripts/check_pure_imports.py" >/dev/null 2>&1 ); check "S-07 red: bare open() call blocks" 1 $?
+echo 'x = reopen(state)' > "$T3/src/pure/fsleak.py"
+( cd "$T3" && python3 "$KIT/scripts/check_pure_imports.py" >/dev/null 2>&1 ); check "S-07 green: 'reopen(' not a false positive" 0 $?
+rm "$T3/src/pure/fsleak.py"
 T3b="$(mktemp -d)"; ( cd "$T3b" && git init -q && mkdir lib && python3 "$KIT/scripts/check_pure_imports.py" 2>&1 | grep -q "NOTE" ); check "S-07 states not-applicable (A8)" 0 $?
 rm -rf "$T3" "$T3b"
 

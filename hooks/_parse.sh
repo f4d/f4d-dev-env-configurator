@@ -37,6 +37,11 @@ log_deny() {
   local root
   root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
   mkdir -p "$root/.claude" 2>/dev/null || return 0
+  # REDACT before persisting: C-01 denies carry the very credential the guard
+  # exists to keep out of files. The log must never become the leak.
+  detail=$(printf '%s' "$detail" \
+    | sed -E 's/([A-Za-z_]*(KEY|TOKEN|SECRET|PASS(WORD)?|MNEMONIC|CREDENTIAL)[A-Za-z_]*[[:space:]]*=)[^[:space:]]+/\1[REDACTED]/Ig' \
+    2>/dev/null) || detail="[redaction failed — detail withheld]"
   printf '%s\t%s\t%s\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rule" "$(printf '%s' "$detail" | head -c 120 | tr '\n\t' '  ')" \
     >> "$root/.claude/.enforcement-log" 2>/dev/null || true
