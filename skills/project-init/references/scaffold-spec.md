@@ -26,12 +26,17 @@ source for its shape; do not restate the fields elsewhere.
 - `round` — the last **completed** interview round (0–3). Plan confirmation (Step 2) sets it to `4`.
 - `answers` — question-key → answer, accumulated across rounds. Keys are short slugs; the value is the user's settled answer, not the raw reply.
 - `decided_modules` — empty until Step 2 approval, then the confirmed module list.
-- `preexisting` — captured **once, at plan confirmation**: every planned target path that already exists on disk. This is what lets a resume tell "was here before us" from "our write was interrupted"; without it the two are indistinguishable.
+- `preexisting` — captured **once, at first entry into Step 3 (execution start)** — not at plan confirmation, and never refreshed on a resume. Both halves matter: a file created *between* a saved plan and execution must land in the inventory (so capture at execution), and a file *we* wrote must never be reclassified as pre-existing (so never recapture on resume). This is what lets a resume tell "was here before us" from "our write was interrupted"; without it the two are indistinguishable.
 - `written_files` — paths whose write **completed**, appended after each write.
 - `phases` — non-file steps that completed, e.g. `{"scaffold_commit": true, "baseline_recorded": true, "repo_variable_set": true}`. File writes are not the only resumable work.
 
 Resume rules:
 
+- **Schema check before anything else:** a parseable state file missing fields
+  this spec requires (`preexisting`, `phases`) is a legacy or foreign schema —
+  treat it exactly like the corrupt case in Step 0: show it, offer
+  discard-or-stop. Never default a missing `preexisting` to `[]`; in RETROFIT
+  that silently reclassifies every pre-existing target as safe to rewrite.
 - Write state after a round completes, never mid-round.
 - Skip exactly the files in `written_files`.
 - A planned file **not** in `written_files`: if it is in `preexisting`, redo the retrofit-safe operation for it — those operations must be idempotent by construction (append checks for its entries first; `.proposed` files are simply rewritten). If it is not in `preexisting`, rewrite it outright; content is deterministic given `answers`.

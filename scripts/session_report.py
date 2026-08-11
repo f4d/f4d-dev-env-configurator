@@ -77,12 +77,14 @@ def main():
         print()
 
     print("DECIDE NOW, NOT LATER")
-    if sub == 0 and n >= 5:
-        print("  Rules loaded in every recorded session. If a rule still did not")
+    if n >= 5:
+        print("  Every session in this log ran the SessionStart hook (it wrote the")
+        print("  log), and current Claude Code auto-loads CLAUDE.md and unscoped")
+        print("  rules regardless of start directory. If a rule still did not")
         print("  fire, it is genuinely mis-classified: promote it to a hook or a test.")
-    elif sub:
-        print("  Load path was broken for some sessions. Fix it first, then")
-        print("  re-read this report before promoting any rule to a test.")
+        if sub:
+            print(f"  ({sub} subdir starts are a relative-path risk only, not a")
+            print("  rules-loading failure.)")
     else:
         print(f"  Only {n} sessions recorded. Thin, but do not wait passively —")
         print("  run /project-audit now and use the static evidence instead.")

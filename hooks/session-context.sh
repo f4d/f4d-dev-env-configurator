@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# SessionStart hook — fixes the load-path defect.
+# SessionStart hook — legacy defense-in-depth for the load path.
 #
-# CLAUDE.md auto-loads (upward walk from the session's cwd — root files DO reach
-# subdirectory sessions; verified live 2026-08-11). What never auto-loads is the
-# rest: AGENTS.md-style guides and the .claude/rules/*.md modules. Without this
-# hook every session gets only CLAUDE.md and none of the modules — a
-# configuration defect, not a discipline problem: no amount of "remember to
-# read the rules" fixes it.
+# Doctrine corrected 2026-08-11 (twice): current Claude Code auto-loads
+# CLAUDE.md (upward walk from the session cwd) AND unscoped .claude/rules/*.md
+# (recursively, at launch) — per the official memory docs. On current CLI
+# versions this hook is NOT what puts rules in context. It remains shipped as
+# insurance for older CLIs and --setting-sources exclusions, pending the
+# retire-or-rejustify decision in backlog A15. AGENTS.md-style guides still
+# never auto-load; the documented fix there is an @AGENTS.md import in
+# CLAUDE.md, not this hook.
 #
 # This hook walks up to the repo root and injects the rules index into every
 # session regardless of where it started.

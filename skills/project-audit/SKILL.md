@@ -15,23 +15,34 @@ Determine first whether the repo carries the kit at all (`.claude/.framework-sta
 kit rules modules). When it does not — an unscaffolded or inherited repo — do not
 improvise which checks translate:
 
-- **Run as-is:** config presence, enforcement layer (against whatever instruction
-  files the repo has — a `CLAUDE.md`-shaped file that does not auto-load is the
-  headline finding, not a skipped check), verify integrity, rules-vs-reality
-  (judged against the repo's own stated rules), statelessness (if multi-instance),
-  and the code-level spot checks.
+- **Discover the repo's actual instruction layer first.** Find and read what
+  exists: `CLAUDE.md` / `.claude/CLAUDE.md` / `CLAUDE.local.md`, `.claude/rules/`,
+  `AGENTS.md`, `CONTRIBUTING`, process docs. For each stated rule, classify it:
+  actually enforced (their CI, tests, hooks) vs enforceable-but-prose. That list
+  is the enforcement finding — and the mature local equivalents it reveals are
+  exactly what the Adoption recommendation must respect. A guide in a file that
+  does not auto-load (`AGENTS.md` without a `CLAUDE.md` importing it) is the
+  headline finding, not a skipped check.
+- **Run as-is:** config presence, verify integrity, rules-vs-reality (judged
+  against the rules discovered above), and the code-level spot checks.
+- **Statelessness (if multi-instance):** the target has no gate script of its
+  own — run the **plugin's** copy from the target's root:
+  `python3 "$CLAUDE_PLUGIN_ROOT/scripts/check_statelessness.py"`. The unwired
+  gate in the target is itself a finding; a missing-file error is not.
 - **Skipped by construction — declare each in *Not checked*:** framework
   version/drift classification, registry honesty against the kit registry, and
   the kit gate scripts the repo never wired. Absence of a baseline is a fact to
   state, never a gap to silently skip past.
 - **Org checks** run if a profile exists at `~/.claude/f4d/orgs/`; if none exists,
-  say so and recommend `/org-profile` — company identity (GitHub org, domains,
-  agency vs own-product) is what these checks exist to verify.
+  say so and **recommend** `/org-profile` — never run it mid-audit (it is
+  interactive and writes global state; the audit's only write is the report).
+  Company identity (GitHub org, domains, agency vs own-product) is what these
+  checks exist to verify.
 
 ## Checks
 
 **Org alignment**
-- Is there an org profile for this project's company at `~/.claude/f4d/orgs/`? If not, run `/org-profile`.
+- Is there an org profile for this project's company at `~/.claude/f4d/orgs/`? If not, report that and recommend `/org-profile` — do not run it mid-audit.
 - Does `.claude/rules/org.md` exist and match the profile's current `constraints` block? Report drift in either direction.
 - Do this repo's conventions match the org profile — webhook prefix, package scope, env prefix, default branch?
 - Is this repo on the org Project board if the profile says `coherence: shared`?
@@ -49,16 +60,19 @@ python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_report.py"
 ```
 
 It reports counts, not recollection: how many sessions started outside the repo
-root (a relative-path risk signal — `CLAUDE.md` still loads from there), how
-often verify actually ran, and whether the rules set changed mid-window. **If sessions started in subdirectories, every
-conclusion about "the rules were ignored" is unreliable for those sessions.** Fix
-the load path, then re-read.
+root (a relative-path risk signal — `CLAUDE.md` and unscoped `.claude/rules/`
+load there regardless), how often verify actually ran, and whether the rules set
+changed mid-window. Subdirectory starts do **not** invalidate rule conclusions —
+every session in that log ran the hook that wrote it, and current Claude Code
+auto-loads the instruction layer with an upward walk. Only independently
+observed missing rule context (e.g. `/context` showing no memory files) warrants
+a load-path remediation.
 
 If there is no log yet, do not wait for one. Say so, and fall back to the static
 checks below — they are available immediately.
 
 **Enforcement layer** — check this before anything else
-- Is `SessionStart` wired in `.claude/settings.json`? If not, **no session — root or subdirectory — has ever had the rules modules in context; only `CLAUDE.md` auto-loads.** Report this first; it invalidates any conclusion that "the rules were ignored." (Corrected 2026-08-11: subdirectory starts do NOT lose `CLAUDE.md` — it walks up. The loss is the modules, everywhere.)
+- Is `SessionStart` wired in `.claude/settings.json`? (Doctrine corrected twice, 2026-08-11 — current truth per the Claude Code memory docs: `CLAUDE.md` auto-loads with an upward walk AND unscoped `.claude/rules/*.md` auto-load at launch. On current CLI versions the hook is **not** what puts rules in context; treat its absence as a legacy-version/defense-in-depth gap, not a rules-were-never-loaded finding. See backlog A15 for the hook's retire-or-rejustify decision.) Verify actual loading with `/context`, not inference.
 - Are `rule-zero.sh` and `done-check.sh` wired?
 - For each rule in `.claude/rules/`, ask: is this mechanically enforceable, and is it enforced? List every enforceable-but-prose rule. That list is the real audit finding.
 - Are there near-duplicate files suggesting Rule 0 was not in force — `*V2`, `*-final`, `*-new`, `*-copy`, `*-updated`?

@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.14.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.14.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -125,6 +125,29 @@ it. Red-then-green proof either way: the GHL-MCP pattern must pass, a
 request-time mutation must still fail.
 
 **Files:** `scripts/check_statelessness.py`, `templates/rules/statelessness.md`
+
+---
+
+### A15 — session-context.sh: retire or re-justify · **medium** · effort S
+
+**Why:** the hook's founding rationale is now twice-disproven. Current Claude
+Code auto-loads `CLAUDE.md` (upward walk) **and** unscoped `.claude/rules/*.md`
+(recursively, at launch) per the official memory docs — so on current CLIs the
+hook is not what puts rules in context. It currently ships as
+defense-in-depth for older CLIs and `--setting-sources` exclusions.
+
+**Build:**
+1. Empirical test on the CLI version actually deployed: scratch repo with a
+   sentinel rule in `.claude/rules/`, no hook — does `/context` show it loaded?
+2. If auto-load holds: either retire the hook (and its wiring in
+   `/project-init`) or re-scope it to what still needs loading (nothing? an
+   `AGENTS.md` import is the documented fix for that case, not a hook).
+3. Whichever way: session-log telemetry (`.claude/.session-log`) is written by
+   this hook — A10 and `session_report.py` depend on it, so retiring the
+   loading job must keep (or relocate) the logging job.
+
+**Files:** `hooks/session-context.sh`, `skills/project-init/SKILL.md`,
+`templates/process/ENFORCEMENT.md`, `scripts/session_report.py`
 
 ---
 
