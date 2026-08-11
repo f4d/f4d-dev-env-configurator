@@ -179,7 +179,7 @@ execute.
 
 ## Step 3 — Write the scaffold
 
-Read `references/scaffold-spec.md` for exact file contents and layout. Before the first write, record in `.claude/.init-state.json` which planned targets already exist (`preexisting`). After each file lands, append its path to `written_files`; after each non-file step completes (the commit, the upgrade baseline, the repo variable), record it in `phases`. Resume semantics — including how pre-existing targets are re-done safely and why the commit must be phase-tracked — live in the spec's *Init state file* section. Write in this order:
+Read `references/scaffold-spec.md` for exact file contents and layout. At entry into this step, if `preexisting` is `null` — and only then — capture which planned targets already exist on disk (`null` = never captured; `[]` = captured and empty; a resume never recaptures). After each file lands, append its path to `written_files`; after each non-file step completes (the commit, the upgrade baseline, the repo variable), record it in `phases`. Resume semantics — including how pre-existing targets are re-done safely and why the commit must be phase-tracked — live in the spec's *Init state file* section. Write in this order:
 
 1. `.gitignore`, toolchain pins (`.python-version`, `packageManager`)
 2. `CLAUDE.md` — assembled from `templates/scaffold/CLAUDE.md.tmpl`, **kept under 80 lines**

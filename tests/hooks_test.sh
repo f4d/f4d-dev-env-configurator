@@ -5,14 +5,17 @@ set -uo pipefail
 HOOKS="$(cd "$(dirname "$0")/../hooks" && pwd)"
 pass=0; fail=0
 
+tmp=$(mktemp -d); ( cd "$tmp" && git init -q && touch report.ts && git add -A )
+
 check() { # name expected_exit hook json
+  # Runs inside the disposable fixture repo — a denying case must write its
+  # telemetry THERE, never into the kit's own .claude/.enforcement-log, or
+  # every test run corrupts the fire counts /retro reads.
   local name="$1" want="$2" hook="$3" json="$4" got
-  echo "$json" | bash "$HOOKS/$hook" >/dev/null 2>&1; got=$?
+  echo "$json" | (cd "$tmp" && bash "$HOOKS/$hook") >/dev/null 2>&1; got=$?
   if [ "$got" -eq "$want" ]; then echo "  PASS  $name"; pass=$((pass+1))
   else echo "  FAIL  $name (want exit $want, got $got)"; fail=$((fail+1)); fi
 }
-
-tmp=$(mktemp -d); ( cd "$tmp" && git init -q && touch report.ts && git add -A )
 
 echo "guard.sh"
 check "blocks .env"            2 guard.sh '{"tool_input":{"file_path":"/x/.env"}}'
@@ -113,7 +116,23 @@ if [ -f "$et4/.claude/.enforcement-log" ] && tail -1 "$et4/.claude/.enforcement-
   echo "  PASS  rule-zero deny logs C-05"; pass=$((pass+1))
 else echo "  FAIL  rule-zero deny logs C-05"; fail=$((fail+1)); fi
 
-rm -rf "$tmp" "$dc" "$dc2" "$vr" "$vr2" "$et" "$et2" "$et3" "$et4"
+# 5. The log must never become the leak: credential values are redacted.
+et5=$(mktemp -d); ( cd "$et5" && git init -q )
+echo '{"tool_input":{"command":"deploy API_KEY=hunter2-super-secret --now"}}' | (cd "$et5" && bash "$HOOKS/guard.sh" >/dev/null 2>&1)
+logline=$( [ -f "$et5/.claude/.enforcement-log" ] && cat "$et5/.claude/.enforcement-log" || echo "" )
+if printf '%s' "$logline" | grep -q "hunter2"; then
+  echo "  FAIL  credential value leaked into telemetry"; fail=$((fail+1))
+elif printf '%s' "$logline" | grep -q "REDACTED"; then
+  echo "  PASS  credential value redacted in telemetry"; pass=$((pass+1))
+else echo "  FAIL  redaction marker missing (log: $logline)"; fail=$((fail+1)); fi
+
+# 6. The harness itself must not pollute the kit's real enforcement log.
+KIT_ROOT="$(cd "$HOOKS/.." && pwd)"
+if [ ! -f "$KIT_ROOT/.claude/.enforcement-log" ]; then
+  echo "  PASS  test run leaves the kit's own log untouched"; pass=$((pass+1))
+else echo "  FAIL  tests wrote into the kit's real enforcement log"; fail=$((fail+1)); fi
+
+rm -rf "$tmp" "$dc" "$dc2" "$vr" "$vr2" "$et" "$et2" "$et3" "$et4" "$et5"
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ] || exit 1

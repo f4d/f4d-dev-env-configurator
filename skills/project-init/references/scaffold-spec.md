@@ -16,7 +16,7 @@ source for its shape; do not restate the fields elsewhere.
   "round": 2,
   "answers": { "company": "F4 Digital", "backend_language": "typescript" },
   "decided_modules": [],
-  "preexisting": [],
+  "preexisting": null,
   "written_files": [],
   "phases": {}
 }
@@ -26,7 +26,7 @@ source for its shape; do not restate the fields elsewhere.
 - `round` — the last **completed** interview round (0–3). Plan confirmation (Step 2) sets it to `4`.
 - `answers` — question-key → answer, accumulated across rounds. Keys are short slugs; the value is the user's settled answer, not the raw reply.
 - `decided_modules` — empty until Step 2 approval, then the confirmed module list.
-- `preexisting` — captured **once, at first entry into Step 3 (execution start)** — not at plan confirmation, and never refreshed on a resume. Both halves matter: a file created *between* a saved plan and execution must land in the inventory (so capture at execution), and a file *we* wrote must never be reclassified as pre-existing (so never recapture on resume). This is what lets a resume tell "was here before us" from "our write was interrupted"; without it the two are indistinguishable.
+- `preexisting` — **`null` until captured; capture exactly when it is `null`, at entry into Step 3.** `null` means "inventory not taken yet"; `[]` means "taken, and the directory had no planned targets" — the two must never be conflated, because a saved plan writes state (with `null`) before execution, and a resume must never recapture (a file *we* wrote must not be reclassified as pre-existing) while first execution after a saved plan **must** capture (a file created between plan and execution must land in the inventory). This is what lets a resume tell "was here before us" from "our write was interrupted".
 - `written_files` — paths whose write **completed**, appended after each write.
 - `phases` — non-file steps that completed, e.g. `{"scaffold_commit": true, "baseline_recorded": true, "repo_variable_set": true}`. File writes are not the only resumable work.
 

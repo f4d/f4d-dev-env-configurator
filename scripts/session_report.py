@@ -83,9 +83,11 @@ def main():
     print("DECIDE NOW, NOT LATER")
     if n >= 5:
         print("  Every session in this log ran the SessionStart hook (it wrote the")
-        print("  log), and current Claude Code auto-loads CLAUDE.md and unscoped")
-        print("  rules regardless of start directory. If a rule still did not")
-        print("  fire, it is genuinely mis-classified: promote it to a hook or a test.")
+        print("  log). On current CLIs (auto-load verified on 2.1.220) rules were in")
+        print("  context; on older CLIs the hook injects an INDEX, not contents —")
+        print("  confirm with /context evidence before treating a rule as loaded.")
+        print("  With loading established: a rule that still did not fire is")
+        print("  genuinely mis-classified — promote it to a hook or a test.")
         if sub:
             print(f"  ({sub} subdir starts are a relative-path risk only, not a")
             print("  rules-loading failure.)")

@@ -46,10 +46,14 @@ def main():
             path = os.path.join(dirpath, name)
             rel = os.path.relpath(path, base)
             scanned += 1
-            lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
-            for i, line in enumerate(lines):
-                if not SQL.search(line):
-                    continue
+            content = open(path, encoding="utf-8", errors="replace").read()
+            lines = content.splitlines()
+            # Whole-content scan: a multiline template literal puts the opening
+            # quote and the SQL verb on different lines, which a per-line scan
+            # walks straight past — the exact handlers D-06 exists to protect.
+            for m in SQL.finditer(content):
+                i = content.count("\n", 0, m.start())  # 0-based line of the match
+                line = lines[i] if i < len(lines) else ""
                 ann = OK.search(line) or (OK.search(lines[i - 1]) if i else None)
                 if ann:
                     if not (ann.group(1) or "").strip():

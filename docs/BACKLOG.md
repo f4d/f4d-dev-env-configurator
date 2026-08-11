@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.17.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.18.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -17,7 +17,7 @@
 | Surface | Count | Notes |
 |---|---|---|
 | Skills | 15 | repo-builder, org-profile, project-init, project-audit, framework-upgrade, promote-rule, notion-sync, new-module, new-integration, contract-first, work-intake, write-spec, decision-record, ship-it, retro |
-| Rules modules | 22 | incl. REGISTRY.md with 72 rules |
+| Rules modules | 22 | incl. REGISTRY.md with 75 rules |
 | Hooks | 7 | guard, rule-zero, session-context, done-check, verify-record, format, _parse |
 | Gate scripts | 10 | fixtures, contract-pin, guess-lists, rollback, statelessness, upgrade, render-registry, commits, raw-sql, pure-imports |
 | Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner |
@@ -25,7 +25,7 @@
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
 | Tests | 54 | `tests/hooks_test.sh` (24) + `render_registry_test.sh` (11) + `gate_trio_test.sh` (19), all passing |
 
-**Rule status:** 37 mechanically enforced · 12 tracked debt with triggers · 13 judgment · rest scaffold/agent.
+**Rule status:** 40 mechanically enforced · 12 tracked debt with triggers · 13 judgment · rest scaffold/agent.
 
 ---
 
@@ -212,7 +212,7 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 
 | ID | Item | Value |
 |---|---|---|
-| O4 | Conformance suite: scaffold a throwaway project per module combo, assert verify passes on the empty scaffold | **The scaffolder is the least-tested component in a system whose premise is testing** |
+| O4 | Conformance suite: scaffold a throwaway project per module combo, assert verify passes on the empty scaffold — **now also owns**: full-spec plan/execute parity (the A4/A5 acceptance proved parity over a 19-file subset; workflows, issue templates, guard tests, and the framework-state baseline were not exercised) and full-Step-4 delete-on-success discipline | **The scaffolder is the least-tested component in a system whose premise is testing** |
 | O5 | Extract the doctrine (`silent-degradation`, `guards`, `capability-parity`) as a portable artifact | Most valuable content, least tool-coupled; survives a move off Claude Code |
 | O6 | Cross-project rule analytics | Fires everywhere → always-on. Never anywhere → delete. One repo only → local problem |
 | O2b | `/project-audit` asks the *unanswered* interview questions on an existing repo | Turns retrofit into a partial interview (A4 built — unblocked) |
@@ -237,10 +237,8 @@ NOW      B-01 Notion approval    (blocked on Ian)
 
 NEXT     A6   hook precedence   ← start here
 
-SOON              A13  ST-01 import-time-registry false positive (from live test)
-         A6   hook precedence
-         A11  plugin-absence fallback
-         O4   conformance suite
+SOON     A11  plugin-absence fallback
+         O4   conformance suite (now also owns: full-spec plan/execute parity + full-Step-4 delete discipline)
 
 LATER    S-03, S-04, O-05, G-05, C-08   (registry debt, M each)
          N-01 Workers migration — at 3rd repo or beta exit
