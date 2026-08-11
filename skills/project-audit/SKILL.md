@@ -1,6 +1,6 @@
 ---
 name: project-audit
-description: Audit an existing repo against the f4d-kit framework and report what is missing, drifted, or misconfigured — rules, hooks, verify command, CI, seed quality, adapter coverage. Use when the user asks to "rightsize", "audit", "check this repo", "why does Claude keep getting this wrong here", or before adopting an inherited codebase. Also use periodically on projects already scaffolded, to catch drift.
+description: Audit an existing repo against the f4d-kit framework and report what is missing, drifted, or misconfigured — rules, hooks, verify command, CI, seed quality, adapter coverage. Writes the full report to docs/f4d-audit-<date>.md in the audited repo — findings, proposed changes with benefits and dangers, and a prioritized todo list. Use when the user asks to "rightsize", "audit", "check this repo", "why does Claude keep getting this wrong here", or before adopting an inherited codebase. Also use periodically on projects already scaffolded, to catch drift.
 ---
 
 # Project Audit
@@ -88,6 +88,8 @@ checks below — they are available immediately.
 
 ## Output
 
+First print the summary:
+
 ```
 REPO:       <name>
 FRAMEWORK:  present | partial | absent
@@ -99,4 +101,23 @@ UNNEEDED    (present, project does not need it)
 FINDINGS    (code-level, with file:line)
 ```
 
-Rank everything by what will bite soonest. Then ask: *"Want me to fix these, or start with the top three?"* Never fix unasked.
+Then write the full report as **`docs/f4d-audit-<YYYY-MM-DD>.md`** in the audited
+repo — on a dedicated branch when the repo has git, never pushed unasked. **This
+document is the only file the audit writes.** Sections, in order:
+
+1. **Header** — repo, date, kit version audited against, framework presence, verify status.
+2. **Summary** — three sentences max: what will bite soonest and why.
+3. **Findings** — the four categories above, each entry with file:line evidence.
+4. **Proposed changes** — one row per change: what | benefit | danger | effort (S/M/L),
+   ranked by what bites soonest. The **danger** column is not optional and "none" is
+   rarely true: name what adopting the change could break in *this* repo — a hook that
+   would start blocking a current workflow, a gate that goes red on existing code, a
+   verify command that fails on the baseline. A gate that fires wrongly gets disabled,
+   and a disabled gate protects nothing — so the danger column is where that fate is
+   predicted and avoided.
+5. **Todo list** — prioritized checkboxes, one per proposed change, each self-contained
+   enough to hand to a fresh session.
+6. **Not checked** — what this audit could not evaluate and why. Silence reads as
+   "checked and fine"; say what wasn't.
+
+Rank everything by what will bite soonest. Then ask: *"Want me to fix these, or start with the top three?"* Never fix unasked — the report document is the deliverable; applying it is a separate decision.
