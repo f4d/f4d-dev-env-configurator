@@ -53,8 +53,11 @@ first.
 When multiple hooks match one tool call — two `PreToolUse` entries on `Write`,
 or plugin hooks alongside a project's own — the contract is:
 
-- **All matching hooks run. Any hook exiting 2 blocks the call.** A passing
-  hook cannot override a blocking one.
+- **All matching hooks run — observed directly via per-hook markers, both
+  orders — and any hook exiting 2 blocks the call.** A passing hook cannot
+  override a blocking one, and a blocking hook does not prevent later hooks
+  from running (so side-effectful hooks still fire on blocked calls — design
+  them accordingly).
 - **Order affects only which message the user sees first, never correctness.**
   Proven both ways on CLI 2.1.220 with a validity control
   (`docs/acceptance/2026-08-11-a6-hook-precedence.md`).

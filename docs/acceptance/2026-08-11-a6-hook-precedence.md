@@ -15,6 +15,12 @@ B (blocker second)      : file BLOCKED/absent
 call; a passing hook cannot override a blocking one; **order affects only which
 message the user sees first, never the outcome**.
 
+**Marker re-run (same day, after review):** both hooks append distinct markers
+to a shared file. Result, both orders: `file=blocked markers=[A B]` — **both
+hooks executed in both orders**; the runner does not short-circuit after a
+block. "All matching hooks run" is now directly observed, not inferred from
+outcomes.
+
 Bounds: single `--settings` source carrying both hooks — this proves the
 aggregation semantics (all matching hooks run; any block wins). Cross-source
 merging (user + project + plugin all contributing hooks to one matcher) is per

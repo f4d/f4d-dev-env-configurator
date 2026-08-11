@@ -55,3 +55,14 @@ def test_s02_catches_raw_id():
     with pytest.raises(AssertionError, match="S-02"):
         assert_no_raw_ids(bad, "profile page")
     assert_no_raw_ids("Owner: Ian Lowell", "profile page")
+
+
+# ---------------------------------------------------------------------------
+# S-04 — a new value/type/shape must fail a check, never degrade to a default.
+# Python's runtime twin of assertNever: call it in the else of every
+# enum/literal dispatch. New member -> loud failure at the boundary, never a
+# silent default. (On 3.11+, typing.assert_never gives the static half too.)
+def assert_never(value, context="value"):
+    raise AssertionError(
+        f"Unhandled {context}: {value!r} — a new value reached a dispatch that does not handle it (S-04)"
+    )

@@ -91,6 +91,8 @@ def main():
                 f"{fdir}: adapter '{adapter}' missing fixtures for {sorted(missing)} (I-02)"
             )
 
+    failures += g05_case_diff(dirs)
+
     if failures:
         print("FIXTURE CHECK FAILED\n")
         for f in failures:
@@ -100,6 +102,57 @@ def main():
 
     print(f"Fixture check passed — {len(dirs)} adapter fixture dir(s), all fresh.")
     return 0
+
+
+def case_count(data):
+    """Cases a fixture expresses: top-level keys (minus _meta) or array length."""
+    if isinstance(data, dict):
+        return len([k for k in data if k != "_meta"])
+    if isinstance(data, list):
+        return len(data)
+    return 1
+
+
+def g05_case_diff(dirs):
+    """G-05 — improving a fixture must not delete a case it expressed.
+
+    Compares each fixture's case count against $BASE_REF. A decrease needs
+    `fixture-case-removed-ok: <reason>` in the PR body — correcting a fake can
+    silently remove the only case expressing a residual. Without BASE_REF
+    (local run) this states so and skips; CI always sets it.
+    """
+    base = os.environ.get("BASE_REF", "").strip()
+    if not base:
+        print("check_fixtures: NOTE — BASE_REF unset; G-05 case-diff runs in CI only.")
+        return []
+    body = os.environ.get("PR_BODY", "")
+    waiver = __import__("re").search(r"fixture-case-removed-ok:\s*(\S.*)", body)
+    problems = []
+    for fdir in dirs:
+        for fn in os.listdir(fdir):
+            if not fn.endswith(".json"):
+                continue
+            path = os.path.join(fdir, fn)
+            try:
+                now = case_count(json.load(open(path)))
+            except Exception:
+                continue  # unparseable already failed I-03 above
+            try:
+                old_blob = subprocess.run(["git", "show", f"{base}:{os.path.relpath(path)}"],
+                                          capture_output=True, text=True, check=True).stdout
+                before = case_count(json.loads(old_blob))
+            except (subprocess.CalledProcessError, json.JSONDecodeError):
+                continue  # new fixture, or old was unparseable — nothing to protect
+            if now < before:
+                if waiver:
+                    print(f"check_fixtures: {path} cases {before} -> {now}, ACCEPTED: {waiver.group(1).strip()[:100]} (G-05)")
+                else:
+                    problems.append(
+                        f"{path}: fixture case count decreased {before} -> {now} (G-05). "
+                        "Diff the cases it expressed, not just its values — or state "
+                        "`fixture-case-removed-ok: <reason>` in the PR body."
+                    )
+    return problems
 
 
 if __name__ == "__main__":

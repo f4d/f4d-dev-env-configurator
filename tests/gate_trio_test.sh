@@ -70,5 +70,51 @@ rm "$T3/src/pure/fsleak.py"
 T3b="$(mktemp -d)"; ( cd "$T3b" && git init -q && mkdir lib && python3 "$KIT/scripts/check_pure_imports.py" 2>&1 | grep -q "NOTE" ); check "S-07 states not-applicable (A8)" 0 $?
 rm -rf "$T3" "$T3b"
 
+# ---------- S-03 check_catch_empty ----------
+T4="$(mktemp -d)"; ( cd "$T4" && git init -q ) && mkdir -p "$T4/src"
+echo 'const x = await load().catch(() => []);' > "$T4/src/a.ts"
+( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 red: arrow catch-empty blocks" 1 $?
+printf 'try { x() } catch (e) {\n  return [];\n}\n' > "$T4/src/a.ts"
+( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 red: brace catch-empty blocks" 1 $?
+printf 'try:\n    x()\nexcept ValueError:\n    return []\n' > "$T4/src/a.py"; rm "$T4/src/a.ts"
+( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 red: python except-return-empty blocks" 1 $?
+printf 'try:\n    x()\nexcept ValueError:  # catch-empty-ok: body-parse guard, null handled at the call site\n    return []\n' > "$T4/src/a.py"
+( cd "$T4" && python3 "$KIT/scripts/check_catch_empty.py" >/dev/null 2>&1 ); check "S-03 green: annotated-with-reason passes" 0 $?
+rm -rf "$T4"
+
+# ---------- O-05 check_log_hygiene ----------
+T5="$(mktemp -d)"; ( cd "$T5" && git init -q ) && mkdir -p "$T5/src"
+echo 'console.log("incoming", req.body);' > "$T5/src/h.ts"
+( cd "$T5" && python3 "$KIT/scripts/check_log_hygiene.py" >/dev/null 2>&1 ); check "O-05 red: logging req.body blocks" 1 $?
+printf '// log-ok: logs the redacted summary only\nconsole.log("incoming", req.body.summary);\n' > "$T5/src/h.ts"
+( cd "$T5" && python3 "$KIT/scripts/check_log_hygiene.py" >/dev/null 2>&1 ); check "O-05 green: annotated-with-reason passes" 0 $?
+echo 'console.log("processed", count);' > "$T5/src/h.ts"
+( cd "$T5" && python3 "$KIT/scripts/check_log_hygiene.py" >/dev/null 2>&1 ); check "O-05 green: clean log passes" 0 $?
+rm -rf "$T5"
+
+# ---------- C-08 check_test_count ----------
+T6="$(mktemp -d)"
+( cd "$T6" && git init -q && git config user.email t@t && git config user.name t \
+  && mkdir tests && printf 'def test_a():\n    pass\ndef test_b():\n    pass\n' > tests/test_x.py \
+  && git add -A && git commit -qm "chore: two tests" && git branch -M main && git checkout -q -b feat \
+  && printf 'def test_a():\n    pass\n' > tests/test_x.py )
+( cd "$T6" && BASE_REF=main python3 "$KIT/scripts/check_test_count.py" >/dev/null 2>&1 ); check "C-08 red: test deletion blocks" 1 $?
+( cd "$T6" && BASE_REF=main PR_BODY="test-removal-ok: test_b covered dead feature Z, replaced by integration suite" python3 "$KIT/scripts/check_test_count.py" >/dev/null 2>&1 ); check "C-08 green: stated waiver passes" 0 $?
+( cd "$T6" && python3 "$KIT/scripts/check_test_count.py" 2>/dev/null | grep -q "NOTE" ); check "C-08 states not-evaluable without BASE_REF" 0 $?
+rm -rf "$T6"
+
+# ---------- G-05 fixture case-diff (in check_fixtures) ----------
+T7="$(mktemp -d)"
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+( cd "$T7" && git init -q && git config user.email t@t && git config user.name t && mkdir -p vendorx/fixtures
+  for n in happy empty rate_limited malformed; do
+    printf '{"_meta":{"recorded_at":"%s","source":"t"},"case1":1,"case2":2,"case3":3}' "$NOW" > "vendorx/fixtures/$n.json"
+  done
+  git add -A && git commit -qm "chore: fixtures" && git branch -M main && git checkout -q -b feat
+  printf '{"_meta":{"recorded_at":"%s","source":"t"},"case1":1}' "$NOW" > "vendorx/fixtures/happy.json" )
+( cd "$T7" && BASE_REF=main python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 red: fixture case deletion blocks" 1 $?
+( cd "$T7" && BASE_REF=main PR_BODY="fixture-case-removed-ok: case2/3 duplicated case1 after vendor collapsed the field" python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 green: stated waiver passes" 0 $?
+rm -rf "$T7"
+
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

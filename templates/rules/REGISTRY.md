@@ -39,7 +39,7 @@ promote-when trigger. `JUDGMENT` is a finished state.
 | C-05 | One canonical home per concept — no `V2`/`-final` variants | HOOK | **HOOK** (`rule-zero`) | done |
 | C-06 | Branch per unit of work, conventional commits | LINT | **GATE** (`check_commits`) | done |
 | C-07 | Change the smallest surface that solves the problem | JUDGMENT | JUDGMENT | — |
-| C-08 | Never delete a test to make a build pass | TEST | PROSE | test-count-decrease check in CI |
+| C-08 | Never delete a test to make a build pass | TEST | **GATE** (`check_test_count`) | done |
 | C-09 | No destructive filesystem commands from an agent session | HOOK | **HOOK** | done |
 
 ## Guards
@@ -50,7 +50,7 @@ promote-when trigger. `JUDGMENT` is a finished state.
 | G-02 | Every hook has a fail-loud case in the harness | TEST | **TEST** (`tests/hooks_test.sh`) | done |
 | G-03 | A guard that cannot evaluate its input must block, not allow | TEST | **TEST** | done |
 | G-04 | Unguardable residuals are named explicitly | JUDGMENT | PROSE + DoD | — |
-| G-05 | Improving a fixture must not delete a case it expressed | TEST | PROSE | fixture-case diff in `check_fixtures` |
+| G-05 | Improving a fixture must not delete a case it expressed | TEST | **GATE** (`check_fixtures` case-diff) | done |
 
 ## Silent degradation
 
@@ -60,8 +60,8 @@ The failure class that survives review. Highest-value column in this file.
 |---|---|---|---|---|
 | S-01 | Assert a collection is non-empty before asserting over it | TEST | **TEST** (`templates/tests/`) | done |
 | S-02 | Never render a raw identifier in user-visible output | TEST | **TEST** (`templates/tests/`) | done |
-| S-03 | `catch → []` passes every downstream "is anything missing" gate | TEST | PROSE | lint rule banning empty-collection catch |
-| S-04 | A new value/type/shape must fail a check, never degrade to a default | TEST | PROSE | exhaustiveness check at every enum boundary |
+| S-03 | `catch → []` passes every downstream "is anything missing" gate | TEST | **GATE** (`check_catch_empty`) | done |
+| S-04 | A new value/type/shape must fail a check, never degrade to a default | TEST | **TEST** (template: `assertNever` in `guard_tests.*`) | done |
 | S-05 | One canonical resolver per question — no two guess lists | GATE | PROSE | duplicate-constant-list scan in CI |
 | S-06 | Do not infer what the source already stated | JUDGMENT | PROSE | — |
 | S-07 | A pure function must not fetch | LINT | **GATE** (`check_pure_imports`) | done |
@@ -168,7 +168,7 @@ because every environment before production is single-instance.
 | O-02 | Rollback step written before merge | JUDGMENT | PROSE + DoD | — |
 | O-03 | Rollback rehearsed, not merely written | TEST | **TEST** (`rollback_test`) | done |
 | O-04 | Production credentials never enter an agent session | HOOK | **HOOK** | done |
-| O-05 | Structured logs; never log payloads, PII, or credentials | GATE | PROSE | secret-scan + payload-log grep |
+| O-05 | Structured logs; never log payloads, PII, or credentials | GATE | **GATE** (`check_log_hygiene`) | done |
 | O-06 | Docs-only changes skip the full CI gate | GATE | **GATE** (path filters) | done |
 
 ---

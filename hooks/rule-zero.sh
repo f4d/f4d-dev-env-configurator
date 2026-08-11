@@ -11,10 +11,10 @@ set -uo pipefail
 
 input=$(cat)
 path=$(hook_field "$input" "file_path")
-if [ -z "$path" ] && hook_parse_failed "$input"; then
-  log_deny "G-03" "unparseable tool input (rule-zero)"
-  echo "BLOCKED: rule-zero.sh could not parse the tool input." >&2
-  echo "Install jq or python3. Refusing to allow unverified file creation." >&2
+if [ -z "$path" ] && [ -n "$input" ]; then
+  log_deny "G-03" "no extractable path from tool input (rule-zero)"
+  echo "BLOCKED: rule-zero.sh could not extract a file path from the tool input." >&2
+  echo "Install jq or python3, or fix the hook/matcher. Refusing to allow unverified file creation." >&2
   exit 2
 fi
 [ -z "$path" ] && exit 0
