@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.16.0 — the C-06 · D-06 · S-07 gate trio
+Three PROSE rows promoted to enforced gates, per their own promote-when triggers:
+
+- **C-06** `check_commits.py` — conventional-commit format on the PR range (`BASE_REF..HEAD`), 100-char subject ceiling, `Merge`/`Revert "` auto-subjects skipped. An empty or unresolvable range **blocks** (G-03): a gate that cannot see the commits it judges must not pass.
+- **D-06** `check_raw_sql.py` — SQL string literals in handler-layer directories (`routes/ handlers/ controllers/ api/ endpoints/`) block; migrations and the data layer are excluded. Escape: `raw-sql-ok: <reason>` — an annotation **without** a reason is itself a violation.
+- **S-07** `check_pure_imports.py` — network/DB/fs imports and bare `fetch()` calls in any `pure/` directory block (the global fetch needs no import to be IO). Escape: `pure-io-ok: <reason>`, same no-bare-annotations rule.
+
+Both path-scoped gates state not-applicable out loud when the repo has no matching directories (A8: silence reads as "checked"). All three wired into the consolidated `gates.yml` job with their rule IDs. Proofs: `tests/gate_trio_test.sh`, 19 cases — every gate seen red on a planted violation, every fail-loud path seen to block, both annotations proven to require reasons. Registry: 37 mechanically enforced, 12 tracked debt.
+
 ## 1.15.0 — A2: the registry as a rendered view (A9 closed with it)
 The framework's registry was S-05 committed by the framework that defines S-05: `/project-init` copied `REGISTRY.md` into every project and pruned it, so the framework registry and N project copies could disagree with no detection.
 

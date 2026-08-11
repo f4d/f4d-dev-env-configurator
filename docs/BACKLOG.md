@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.15.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.16.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -19,13 +19,13 @@
 | Skills | 15 | repo-builder, org-profile, project-init, project-audit, framework-upgrade, promote-rule, notion-sync, new-module, new-integration, contract-first, work-intake, write-spec, decision-record, ship-it, retro |
 | Rules modules | 22 | incl. REGISTRY.md with 72 rules |
 | Hooks | 7 | guard, rule-zero, session-context, done-check, verify-record, format, _parse |
-| Gate scripts | 6 | fixtures, contract-pin, guess-lists, rollback, statelessness, upgrade |
+| Gate scripts | 10 | fixtures, contract-pin, guess-lists, rollback, statelessness, upgrade, render-registry, commits, raw-sql, pure-imports |
 | Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | 24 | `tests/hooks_test.sh`, all passing |
+| Tests | 54 | `tests/hooks_test.sh` (24) + `render_registry_test.sh` (11) + `gate_trio_test.sh` (19), all passing |
 
-**Rule status:** 34 mechanically enforced · 15 tracked debt with triggers · 13 judgment · rest scaffold/agent.
+**Rule status:** 37 mechanically enforced · 12 tracked debt with triggers · 13 judgment · rest scaffold/agent.
 
 ---
 
@@ -214,12 +214,9 @@ Use `/promote-rule <ID>`.
 
 | ID | Rule | Target | Effort |
 |---|---|---|---|
-| C-06 | Conventional commits | LINT (commitlint in CI) | S |
 | C-08 | Never delete a test to pass a build | TEST (test-count-decrease check) | S |
 | S-03 | `catch → []` trap | LINT (ban empty-collection catch) | M |
 | S-04 | New value must fail a check, not default | TEST (exhaustiveness at enum boundaries) | M |
-| S-07 | Pure function must not fetch | LINT (no IO import in `pure/`) | S |
-| D-06 | No raw SQL in handlers | GATE (grep) | S |
 | O-05 | Never log payloads/PII/credentials | GATE (secret-scan + grep) | M |
 | G-05 | Fixture edit must not delete a case | TEST (fold into `check_fixtures.py`) | M |
 
@@ -257,8 +254,7 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     C-06 commitlint  ·  D-06 raw-SQL gate  ·  S-07 pure-fn lint   ← start here (all S, do together)
-         A4   live acceptance test (kill/re-run in a scratch repo)
+NEXT     A4   live acceptance test (kill/re-run in a scratch repo)   ← start here
 
 SOON     A10  enforcement telemetry
          A13  ST-01 import-time-registry false positive (from live test)
