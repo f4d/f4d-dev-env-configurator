@@ -17,6 +17,7 @@ git log --oneline
 bash tests/hooks_test.sh                      # expect: pass=28 fail=0
 bash tests/render_registry_test.sh            # expect: pass=11 fail=0
 bash tests/gate_trio_test.sh                  # expect: pass=19 fail=0
+bash tests/statelessness_test.sh              # expect: pass=4 fail=0
 python3 scripts/check_statelessness.py        # expect: clean
 python3 scripts/check_guess_lists.py          # expect: clean
 

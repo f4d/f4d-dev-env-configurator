@@ -22,7 +22,9 @@ EXT = (".py", ".ts", ".tsx", ".js", ".jsx")
 PATTERNS = [
     # (rule, regex, why)
     ("ST-01", r"^\s*(?:const|let|var)\s+\w*(?:cache|Cache|store|Store|registry|sessions?)\s*(?::[^=]+)?=\s*(?:new\s+Map\(|\{\}|\[\])",
-     "module-level mutable collection — per-instance state pretending to be a cache"),
+     "module-level mutable collection — per-instance state pretending to be a cache. "
+     "If it is populated ONLY at import time (a registration registry), that is safe: "
+     "annotate `stateless-ok import-time registration` — see statelessness.md § Import-time registries"),
     ("ST-01", r"^\s*_?\w*(?:cache|CACHE|_store|SESSIONS|_registry)\s*(?::\s*[Dd]ict[^=]*)?=\s*(?:\{\}|\[\]|dict\(\)|set\(\))",
      "module-level mutable collection — per-instance state"),
     ("ST-02", r"\b(?:threading\.Lock|asyncio\.Lock|new\s+Mutex|Semaphore)\s*\(",

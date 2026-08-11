@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.1 — A13: the import-time-registry exception, as doctrine
+The live test's ST-01 false positive becomes a sanctioned, bounded exception: `statelessness.md` § *Import-time registries* documents why a module-level registry populated only at module top level is static-after-load (no cross-instance drift possible), the exact annotation (`stateless-ok import-time registration — <cite the call-site check>`), and the sharp boundary — any request-time registration makes it real ST-01, and since the scanner cannot see call-site timing across files, the annotation is a claim a reviewer verifies. The ST-01 finding message now points at the section. 4-case red-then-green harness added (`tests/statelessness_test.sh`).
+
+
 ## 1.17.0 — A10: enforcement telemetry
 Hooks knew exactly what they blocked; nothing recorded it. Now every deny appends `timestamp<TAB>rule_id<TAB>detail` to `.claude/.enforcement-log` (shared `log_deny` in `_parse.sh`), each deny carries its registry ID in both the log and the block message, and `session_report.py` prints rules-by-fire-count on every path with an explicit flag for `UNREGISTERED` fires — three guard denies (broadcast, mainnet RPC, `rm -rf`) enforce rules the registry holds no row for, which is now visible instead of implicit. `/retro` reads the counts: fires-daily is a design problem the guard papers over; never-fires is a prune candidate. The hard property is tested (28-case harness): **telemetry can never weaken a deny** — with `.claude` unwritable the block still exits 2, and allowed commands write nothing.
 

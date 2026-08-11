@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.17.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.17.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -98,21 +98,18 @@ file-list matched `git ls-files` exactly (P-04). Same artifact.
 
 ---
 
-### A13 — ST-01 fires on import-time-populated registries · **low** · effort S
+### A13 — ST-01 fires on import-time-populated registries · ✅ built in 1.17.1
 
-**Why:** first live test (GHL-MCP, 2026-08-10) — `check_statelessness.py` flagged a
-module-level `Record` whose only mutations are module-top-level registration calls
-(`registerNativeTab` at import time). Static after load, identical on every
-instance: a false positive. The first thing a wrongly-firing gate teaches a mature
-repo is to disable it — the exact fate the gate exists to avoid.
-
-**Build:** either (a) teach the scanner to clear collections mutated only during
-module evaluation, or (b) document the `stateless-ok` protocol for the
-registration pattern in `statelessness.md` and have the finding message point at
-it. Red-then-green proof either way: the GHL-MCP pattern must pass, a
-request-time mutation must still fail.
-
-**Files:** `scripts/check_statelessness.py`, `templates/rules/statelessness.md`
+Option (b), and the boundary is stated honestly: the scanner matches declaration
+lines and cannot see cross-file call-site timing, so the sanctioned exception is
+a **reviewed annotation** — `stateless-ok import-time registration — <cite the
+call-site check>` — documented in `statelessness.md` § *Import-time registries*
+and pointed at by the ST-01 finding message. Unannotated declarations fail
+regardless of mutation timing (that IS the mechanism); the annotation is a claim
+a reviewer verifies. 4-case harness: unannotated red, annotated green, no
+blanket allow (line-scoped), message cites doctrine. Bare-annotation enforcement
+deliberately stays audit-level — changing the scanner would fail existing
+scaffolds' annotations.
 
 ---
 
@@ -246,7 +243,7 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     A13  ST-01 import-time false positive   ← start here
+NEXT     A15  session-context retire-or-rejustify   ← start here
 
 SOON              A13  ST-01 import-time-registry false positive (from live test)
          A6   hook precedence
