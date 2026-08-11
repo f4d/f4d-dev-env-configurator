@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-10 · **Version shipped:** 1.11.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-10 · **Version shipped:** 1.12.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -100,19 +100,13 @@ rule firing constantly is usually a **design** problem the guard is papering ove
 
 ---
 
-### A5 — Scaffolder has no dry run · **medium** · effort S
+### A5 — Scaffolder has no dry run · ✅ built in 1.12.0
 
-**Why:** writes ~30 files with no preview. Registry contains **P-04 — preview and
-execute produce the same request set**. The scaffolder has no preview at all. Makes
-retrofit mode frightening on a repo with existing code.
-
-**Build:** `--plan` mode printing the file tree, modules, gates, and local-stack
-choice it *would* write, then stopping. Same code path as execute, output only.
-
-**Done when:** `/project-init --plan` prints the plan and writes nothing; the plan
-matches what a real run produces.
-
-**Files:** `skills/project-init/SKILL.md`
+Shipped 2026-08-10: `--plan` runs the same decision path through Step 2, prints
+the full plan (file tree, modules with deciding answers, gates, stack, verify),
+writes nothing. Persists interview state so execute resumes from the confirmed
+plan. RETROFIT defaults to `--plan` first. Live proof rides with the A4
+acceptance test: a real `--plan` run must write zero files and match a real run.
 
 ---
 
@@ -219,7 +213,6 @@ NEXT     A2   registry as manifest         ← start here on code
          C-06 commitlint  ·  D-06 raw-SQL gate  ·  S-07 pure-fn lint   (all S, do together)
 
 SOON     A10  enforcement telemetry
-         A5   scaffolder dry run
          A6   hook precedence
          A11  plugin-absence fallback
          O4   conformance suite
