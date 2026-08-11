@@ -3,6 +3,8 @@
 # A guard that has never been seen to fail is not a guard.
 set -uo pipefail
 HOOKS="$(cd "$(dirname "$0")/../hooks" && pwd)"
+KIT_LOG_PATH="$(cd "$HOOKS/.." && pwd)/.claude/.enforcement-log"
+KIT_LOG_BEFORE="$(cat "$KIT_LOG_PATH" 2>/dev/null | cksum)"
 pass=0; fail=0
 
 tmp=$(mktemp -d); ( cd "$tmp" && git init -q && touch report.ts && git add -A )
@@ -116,21 +118,35 @@ if [ -f "$et4/.claude/.enforcement-log" ] && tail -1 "$et4/.claude/.enforcement-
   echo "  PASS  rule-zero deny logs C-05"; pass=$((pass+1))
 else echo "  FAIL  rule-zero deny logs C-05"; fail=$((fail+1)); fi
 
-# 5. The log must never become the leak: credential values are redacted.
+# 5. Fail-closed: a secret-class deny (C-01) withholds the detail entirely —
+#    assignments, redirect payloads, and URL-embedded keys alike.
 et5=$(mktemp -d); ( cd "$et5" && git init -q )
 echo '{"tool_input":{"command":"deploy API_KEY=hunter2-super-secret --now"}}' | (cd "$et5" && bash "$HOOKS/guard.sh" >/dev/null 2>&1)
-logline=$( [ -f "$et5/.claude/.enforcement-log" ] && cat "$et5/.claude/.enforcement-log" || echo "" )
-if printf '%s' "$logline" | grep -q "hunter2"; then
-  echo "  FAIL  credential value leaked into telemetry"; fail=$((fail+1))
-elif printf '%s' "$logline" | grep -q "REDACTED"; then
-  echo "  PASS  credential value redacted in telemetry"; pass=$((pass+1))
-else echo "  FAIL  redaction marker missing (log: $logline)"; fail=$((fail+1)); fi
+echo '{"tool_input":{"command":"printf sk-live-ABC123 > .env"}}' | (cd "$et5" && bash "$HOOKS/guard.sh" >/dev/null 2>&1)
+loglines=$( [ -f "$et5/.claude/.enforcement-log" ] && cat "$et5/.claude/.enforcement-log" || echo "" )
+if printf '%s' "$loglines" | grep -Eq "hunter2|sk-live-ABC123"; then
+  echo "  FAIL  secret value leaked into telemetry"; fail=$((fail+1))
+elif [ "$(printf '%s\n' "$loglines" | grep -c "withheld — secret-class deny")" -eq 2 ]; then
+  echo "  PASS  secret-class denies withhold the detail entirely"; pass=$((pass+1))
+else echo "  FAIL  withhold marker missing (log: $loglines)"; fail=$((fail+1)); fi
 
-# 6. The harness itself must not pollute the kit's real enforcement log.
-KIT_ROOT="$(cd "$HOOKS/.." && pwd)"
-if [ ! -f "$KIT_ROOT/.claude/.enforcement-log" ]; then
-  echo "  PASS  test run leaves the kit's own log untouched"; pass=$((pass+1))
-else echo "  FAIL  tests wrote into the kit's real enforcement log"; fail=$((fail+1)); fi
+# 6. Non-secret-class denies keep a redacted detail (defense in depth).
+#    (MY_PASSWORD= is redaction-regex material but NOT a C-01 pattern, so the
+#    command routes to the force-push branch — C-02, non-withheld.)
+echo '{"tool_input":{"command":"git push --force origin main MY_PASSWORD=abc123"}}' | (cd "$et5" && bash "$HOOKS/guard.sh" >/dev/null 2>&1)
+last=$(tail -1 "$et5/.claude/.enforcement-log")
+if printf '%s' "$last" | grep -q "abc123"; then
+  echo "  FAIL  non-secret-class deny leaked an assignment value"; fail=$((fail+1))
+elif printf '%s' "$last" | grep -q "C-02.*REDACTED"; then
+  echo "  PASS  non-secret-class deny logs redacted detail"; pass=$((pass+1))
+else echo "  FAIL  expected C-02 with REDACTED (got: $last)"; fail=$((fail+1)); fi
+
+# 7. The harness must leave the kit's own enforcement log EXACTLY as it found
+#    it — which may legitimately exist with real local denies (it is
+#    persistent and gitignored). Compare, don't require absence.
+if [ "$(cat "$KIT_LOG_PATH" 2>/dev/null | cksum)" = "$KIT_LOG_BEFORE" ]; then
+  echo "  PASS  kit's own enforcement log unchanged by the test run"; pass=$((pass+1))
+else echo "  FAIL  tests modified the kit's real enforcement log"; fail=$((fail+1)); fi
 
 rm -rf "$tmp" "$dc" "$dc2" "$vr" "$vr2" "$et" "$et2" "$et3" "$et4" "$et5"
 echo

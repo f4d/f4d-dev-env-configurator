@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.18.1 — telemetry is fail-closed for secret-class denies
+Round-4 review, both findings real. A C-01 deny can carry the secret anywhere in the command — a redirect payload (`printf sk-live-… > .env`), a quoted value, a key inside an RPC URL — shapes no assignment regex can enumerate. Secret-class rules (C-01, KS-01, KS-02) now **withhold the detail entirely**; the rule id and timestamp are the telemetry. Other rules keep assignment-redaction as defense in depth. Tested both ways (raw secrets proven absent from disk). And the harness now snapshots the kit's own enforcement log before running and asserts it is byte-identical after — a developer's legitimate local denies no longer fail the suite.
+
+
 ## 1.18.0 — round-3 review fixes + the UNREGISTERED denies get their rows
 Twelve review findings on #8–#14, all verified, plus the registry decision: **C-09** (no destructive filesystem commands) and a new **Keysafety section** with **KS-01** (no broadcasting) / **KS-02** (no mainnet RPC) — the guard's three formerly-UNREGISTERED denies now carry real IDs (registry: 75 rules, 40 enforced). `UNREGISTERED` remains only as the fire-report's drift detector, now with zero standing members.
 
