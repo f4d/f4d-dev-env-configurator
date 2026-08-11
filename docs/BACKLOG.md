@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.18.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.19.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -144,21 +144,16 @@ test: the A4/A5 kill/re-run acceptance proof.
 
 ---
 
-### A6 — Hook precedence unspecified · **medium** · effort S
+### A6 — Hook precedence unspecified · ✅ built in 1.19.0, evidence-backed
 
-**Why:** two `PreToolUse` hooks now match `Write` (`guard.sh`, `rule-zero.sh`).
-Undefined and undocumented: execution order, what happens when one blocks and one
-passes, and whether plugin hooks merge or override a project's own
-`.claude/settings.json`. Will produce one confusing failure at the worst time.
-
-**Build:**
-1. Verify actual behavior empirically, then document it in `templates/process/ENFORCEMENT.md`
-2. State the intended contract: **any hook exiting 2 blocks; order does not matter
-   for correctness, only for which message the user sees first**
-3. Document plugin-vs-project hook interaction
-4. Add a test: two hooks on the same matcher, one blocks → the call is blocked
-
-**Files:** `templates/process/ENFORCEMENT.md`, `tests/hooks_test.sh`
+Empirical three-run protocol on CLI 2.1.220 (control + blocker-first +
+blocker-second): any hook exiting 2 blocks in BOTH orders; a passing hook never
+overrides. Contract + design consequence (hooks must be independent) in
+`ENFORCEMENT.md` § *Hook precedence*; artifact with the runnable protocol in
+`docs/acceptance/2026-08-11-a6-hook-precedence.md`. Honest bound: the bash
+harness cannot test harness-level aggregation — the artifact's protocol IS the
+test (minutes to re-run); cross-source merge is docs-based with the same
+aggregation semantics empirically anchored.
 
 ---
 
@@ -235,10 +230,9 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     A6   hook precedence   ← start here
+NEXT     A11  plugin-absence fallback   ← start here
 
-SOON     A11  plugin-absence fallback
-         O4   conformance suite (now also owns: full-spec plan/execute parity + full-Step-4 delete discipline)
+SOON              O4   conformance suite (now also owns: full-spec plan/execute parity + full-Step-4 delete discipline)
 
 LATER    S-03, S-04, O-05, G-05, C-08   (registry debt, M each)
          N-01 Workers migration — at 3rd repo or beta exit

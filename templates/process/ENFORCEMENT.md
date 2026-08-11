@@ -48,6 +48,23 @@ Corollary: **never diagnose a repeated instruction failure as inattention until
 you have confirmed the instruction was actually in context.** Check the load path
 first.
 
+## Hook precedence (A6 — evidence-backed)
+
+When multiple hooks match one tool call — two `PreToolUse` entries on `Write`,
+or plugin hooks alongside a project's own — the contract is:
+
+- **All matching hooks run. Any hook exiting 2 blocks the call.** A passing
+  hook cannot override a blocking one.
+- **Order affects only which message the user sees first, never correctness.**
+  Proven both ways on CLI 2.1.220 with a validity control
+  (`docs/acceptance/2026-08-11-a6-hook-precedence.md`).
+- Plugin and project hook arrays **merge** (per the settings documentation);
+  writing a project hook never disables a plugin hook on the same matcher.
+
+Design consequence: hooks must be independent — never write a hook that
+assumes another hook ran before it, and never rely on ordering to suppress a
+block.
+
 ## Honest audit of this framework
 
 Most of what f4d-kit ships is prose, and prose is the ignorable layer. Where each
