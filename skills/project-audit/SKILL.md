@@ -84,9 +84,11 @@ checks below — they are available immediately.
 - More than two minor versions behind → upgrade before any new feature work.
 
 **Registry honesty** — the highest-signal check in this audit
-- Does `.claude/rules/REGISTRY.md` exist?
-- For every row claiming `HOOK`, `TEST`, or `GATE`: **confirm that check actually exists and runs.** A registry asserting enforcement that is not wired is worse than no registry — it makes the gap invisible.
-- For every row marked `PROSE` with a promote-when trigger: has the trigger fired? List those. That list is the promotion backlog.
+- Does `.claude/rules/manifest.json` exist? Validate it:
+  `python3 "$CLAUDE_PLUGIN_ROOT/scripts/render_registry.py" --validate` — **an unknown ID fails the audit** (A9: IDs are permanent; a broken reference means the manifest or plugin version is wrong).
+- A committed `.claude/rules/REGISTRY.md` is itself a finding: projects render from the manifest now (A2); a copy is stale by definition. `upgrade.py` flags it as `STALE-REGISTRY`.
+- Render the view (`render_registry.py`) and then, for every held row claiming `HOOK`, `TEST`, or `GATE` — overrides included: **confirm that check actually exists and runs.** A manifest asserting enforcement that is not wired is worse than none — it makes the gap invisible.
+- For every held row marked `PROSE` with a promote-when trigger: has the trigger fired? List those. That list is the promotion backlog.
 - Run each gate script directly and report pass/fail:
   `python3 .github/scripts/check_fixtures.py`, `check_contract_pin.py`, `check_guess_lists.py`
 

@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.14.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.15.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -59,24 +59,20 @@ this is implemented, not proven.
 
 ---
 
-### A2 — Registry duplicated per project · **high** · effort M
+### A2 — Registry duplicated per project · ✅ built in 1.15.0 (A9 closed with it)
 
-**Why:** `/project-init` copies `REGISTRY.md` and prunes it. Framework registry and
-N project registries can disagree with no detection. **This is S-05 committed by the
-framework that defines S-05.**
-
-**Build:**
-1. Project holds `.claude/rules/manifest.json`: `{rules:["C-01","S-01",...], overrides:{"S-03":"TEST"}}`
-2. Rule text stays in the plugin — single source
-3. `scripts/render_registry.py --manifest` prints the project's registry view on demand
-4. `/project-audit` validates every ID in the manifest exists in the plugin registry (covers A9)
-5. `upgrade.py` gains manifest reconciliation — new plugin rules appear as `NEW`
-
-**Done when:** a project has no `REGISTRY.md` file, `render_registry.py` produces the
-same view it used to store, and an unknown ID in a manifest fails the audit.
-
-**Files:** new `scripts/render_registry.py`, `skills/project-init/SKILL.md`,
-`skills/project-audit/SKILL.md`, `scripts/upgrade.py`
+Shipped 2026-08-11: projects hold `.claude/rules/manifest.json`
+(`{"rules": [...], "overrides": {...}}`); rule text and status live only in the
+plugin registry; `scripts/render_registry.py` renders the project view on demand
+and `--validate` fails on any broken reference. `upgrade.py` reconciles: new
+plugin rules surface as candidates (adoption is a decision, not a sync), a
+committed project `REGISTRY.md` flags as `STALE-REGISTRY`, and broken manifest
+refs exit 1. `REGISTRY.md` now states ID permanence (A9): supersede with a new
+ID, never renumber. Proofs: `tests/render_registry_test.sh` — 11 cases, every
+fail-loud path seen red (unknown ID, override-on-unheld, empty rules, unknown
+key, missing/unparseable inputs, duplicate IDs both sides); live `upgrade.py`
+red/green exit-code check. Done-when met: no project `REGISTRY.md`, rendered
+view reproduces the stored shape, unknown ID fails the audit.
 
 ---
 
@@ -201,15 +197,11 @@ new `templates/scaffold/guard-local.sh`
 
 ---
 
-### A9 — Rule IDs have no permanence guarantee · **low now, high later** · effort S
+### A9 — Rule IDs have no permanence guarantee · ✅ closed with A2 in 1.15.0
 
-**Why:** if `S-05` is split or renamed, every project registry referencing it breaks
-silently — nothing validates that a referenced ID exists.
-
-**Build:** state in `REGISTRY.md` that IDs are permanent once issued; superseding
-uses a new ID plus a `Superseded by` row. Add ID-validity check (folds into A2 step 4).
-
-**Do before v2.0.**
+`REGISTRY.md` § *Reading this file* now states permanence (supersede with a new
+ID, never renumber); `render_registry.py --validate` and `upgrade.py` fail on
+any reference to an ID that does not exist.
 
 ---
 
@@ -265,9 +257,8 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     A2   registry as manifest         ← start here on code
+NEXT     C-06 commitlint  ·  D-06 raw-SQL gate  ·  S-07 pure-fn lint   ← start here (all S, do together)
          A4   live acceptance test (kill/re-run in a scratch repo)
-         C-06 commitlint  ·  D-06 raw-SQL gate  ·  S-07 pure-fn lint   (all S, do together)
 
 SOON     A10  enforcement telemetry
          A13  ST-01 import-time-registry false positive (from live test)
@@ -276,7 +267,6 @@ SOON     A10  enforcement telemetry
          O4   conformance suite
 
 LATER    S-03, S-04, O-05, G-05, C-08   (registry debt, M each)
-         A9   ID permanence — before v2.0
          N-01 Workers migration — at 3rd repo or beta exit
 ```
 

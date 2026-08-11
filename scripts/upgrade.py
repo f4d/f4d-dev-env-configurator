@@ -62,6 +62,13 @@ def classify(base, plugin, state):
     for name in sorted(plugin_files | project_files):
         if not name.endswith(".md"):
             continue
+        if name == "REGISTRY.md":
+            # A2: the registry lives in the plugin only; projects hold a manifest
+            # and render their view. A committed copy is drift, not a NEW offer.
+            if name in project_files:
+                rows.append(("STALE-REGISTRY", f".claude/rules/{name}",
+                             "projects render from manifest.json now (A2) — this copy will drift; migrate and remove"))
+            continue
         rel = f".claude/rules/{name}"
         baseline = state["files"].get(rel)
         proj = digest(os.path.join(dst_root, name))
@@ -82,6 +89,32 @@ def classify(base, plugin, state):
         else:
             rows.append(("CONFLICT", rel, "both changed since last sync"))
     return rows
+
+
+def manifest_report(base, plugin):
+    """A2 step 5 — reconcile the project's rule manifest against the plugin registry.
+
+    New plugin rules surface as candidates (adoption is a decision, not a sync);
+    a manifest ID missing from the registry is a broken reference (A9) and is
+    returned so the caller can fail the run.
+    """
+    mpath = os.path.join(base, ".claude", "rules", "manifest.json")
+    if not os.path.exists(mpath):
+        return []
+    from render_registry import load_manifest, parse_registry  # single source (S-05)
+    rules, overrides = load_manifest(mpath)
+    _, by_id = parse_registry(os.path.join(plugin, "templates", "rules", "REGISTRY.md"))
+    broken = [r for r in rules if r not in by_id]
+    new = sorted(set(by_id) - set(rules))
+    print()
+    print(f"registry manifest   {len(rules)} rules held, {len(overrides)} override(s)")
+    if broken:
+        print(f"  BROKEN     manifest references unknown ID(s): {', '.join(broken)}")
+        print("             IDs are permanent (A9) — the manifest or the plugin version is wrong. Fix first.")
+    if new:
+        print(f"  NEW rules  in the plugin registry, not held by this project: {', '.join(new)}")
+        print("             Review each against this project — adoption is a decision, not a sync.")
+    return broken
 
 
 def main():
@@ -113,6 +146,8 @@ def main():
     print()
     print("  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
 
+    broken_refs = manifest_report(base, args.plugin)
+
     if counts.get("CONFLICT"):
         print()
         print("CONFLICTS need a human. For each, decide whether the local change is")
@@ -123,7 +158,7 @@ def main():
     if not args.apply:
         print()
         print("Dry run. Re-run with --apply to write FRAMEWORK changes.")
-        return 0
+        return 1 if broken_refs else 0
 
     written = []
     for kind, rel, _ in rows:
@@ -145,7 +180,7 @@ def main():
     print()
     print(f"Wrote {len(written)} file(s). Baseline recorded at {newver}.")
     print("Run the project verify command before committing.")
-    return 0
+    return 1 if broken_refs else 0
 
 
 if __name__ == "__main__":
