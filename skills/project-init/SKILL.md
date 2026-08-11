@@ -20,7 +20,7 @@ Check for `.claude/.init-state.json` before anything else — including mode det
 
 - **Absent** → fresh run. Proceed to Step 1.
 - **Present and parseable** → a previous init was interrupted. Show a compact summary — mode, rounds completed, answers given, files already written — and ask: **resume from the next step, or discard and start fresh?** Never silently re-ask what the file already answers, and never silently discard it.
-- **Present but unparseable** → say so loudly, show the raw contents, and ask discard-or-stop. Do not guess at partial state; a corrupt state file treated as valid re-runs the wrong half of the scaffold.
+- **Present but unparseable — or parseable with a legacy/foreign schema** (missing fields the spec requires, e.g. `preexisting`, `phases`) → say so loudly, show the raw contents, and ask discard-or-stop. Do not guess at partial state and do not default missing fields; a corrupt or legacy state file treated as valid re-runs the wrong half of the scaffold, and a defaulted-empty `preexisting` authorizes overwriting pre-existing files in RETROFIT.
 
 Format and resume rules: `references/scaffold-spec.md` § *Init state file*.
 
@@ -154,9 +154,12 @@ print the complete plan and **stop without writing anything**:
 - the local-stack choice (single vs two-instance) and the verify command
 - **every non-file side effect execution would perform**: the scaffold commit,
   `upgrade.py --apply` recording the framework baseline, the `SINGLE_INSTANCE`
-  repo variable (a **remote** change), and Step 4's stack start with its
-  migrations and seed. A plan that lists only files while execution also
-  commits, records, and mutates remote state is not at parity.
+  repo variable (a **remote** change), Step 4's stack start with its migrations
+  and seed, and any **host-level toolchain mutations** the chosen stack requires
+  (`corepack enable`, `uv init`, `curl | bash && foundryup` — user-level changes
+  outside the target repo, plus the package caches they populate). A plan that
+  lists only files while execution also commits, records, and mutates remote and
+  host state is not at parity.
 
 This is registry rule **P-04 applied to the scaffolder itself**: the plan is
 produced by the same decision path as a real run, output only — never a separate
@@ -182,7 +185,7 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Before th
 2. `CLAUDE.md` — assembled from `templates/scaffold/CLAUDE.md.tmpl`, **kept under 80 lines**
 3. `.claude/rules/org.md` — the company's `constraints` block, copied verbatim from its org profile
 4. `.claude/rules/*.md` — copy only the selected modules from `${CLAUDE_PLUGIN_ROOT}/templates/rules/`, **plus `REGISTRY.md` always**. Then prune the registry to the rules this project actually holds, and set each row's `Today` column to what genuinely enforces it here. A registry asserting checks that do not exist is worse than none.
-5. `.claude/settings.json` — hooks wired, **including `SessionStart`**. This is not optional: `CLAUDE.md` auto-loads on its own (upward walk from the session's cwd), but the `.claude/rules/*.md` modules never do — without the hook every session runs on `CLAUDE.md` alone. See `templates/process/ENFORCEMENT.md`.
+5. `.claude/settings.json` — hooks wired, **including `SessionStart`**. Current Claude Code auto-loads both `CLAUDE.md` (upward walk) and unscoped `.claude/rules/*.md` at launch; the hook ships as defense-in-depth for older CLIs and setting-source exclusions, pending backlog A15. Wire it, but never cite it as the reason rules load — verify with `/context`. See `templates/process/ENFORCEMENT.md`.
 6. `.claude/agents/*.md` — only the selected agents
 7. Local stack + `scripts/dev-reset.sh`:
    - Multi-instance project → `docker-compose.multi.yml` (two app instances, nginx round-robin, redis, and a **separate migrate step**) plus `scripts/nginx-lb.conf`. **This is the default.** One instance locally makes every statefulness bug invisible until production.

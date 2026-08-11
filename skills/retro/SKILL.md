@@ -21,9 +21,12 @@ Question 5 produces more value than the other four combined.
 
 **First question for every violated rule: was it even in context?**
 Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_report.py"` — it answers this
-with counts rather than memory. Check the load path before diagnosing inattention. If `session-context.sh`
-is not wired, no session ever had the rules modules in context — only
-`CLAUDE.md` auto-loads — and that is the finding, not the rule.
+with counts rather than memory. Check the load path before diagnosing
+inattention — with **evidence** (`/context` shows what actually loaded), not
+doctrine: current Claude Code auto-loads `CLAUDE.md` and unscoped
+`.claude/rules/*.md`. A rule absent from context needs an observed cause — a
+setting-source exclusion, an old CLI, a path-scoped rule that never matched —
+and that cause is the finding, not the rule.
 
 **Second question: which layer should this have been in?**
 A rule that was in force and did not fire is usually mis-classified, not

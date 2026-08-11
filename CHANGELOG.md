@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.14.2 — round-2 review fixes, and the load-path doctrine corrected a second time
+Nine review findings on #5/#6/#7, all verified. The big one: **1.14.1's correction was itself incomplete** — per the Claude Code memory docs, unscoped `.claude/rules/*.md` **auto-load at launch** (recursively, same priority as `.claude/CLAUDE.md`), so the claim that "only CLAUDE.md auto-loads" was false too. All doctrine sites now state the docs-verified truth; `session-context.sh` is re-labelled defense-in-depth pending **A15** (retire or re-justify, with an empirical `/context` test — its session-log telemetry job must survive either way). `session_report.py`'s decide-now branch no longer treats subdirectory starts as a broken load path (every logged session ran the hook that wrote the log).
+
+Also fixed: legacy v1.13.0 state files without `preexisting`/`phases` are rejected like corrupt state instead of silently defaulting (a defaulted-empty inventory authorizes overwriting pre-existing RETROFIT files); the `preexisting` snapshot moves from plan confirmation to **first entry into Step 3** (files created between a saved plan and execution now land in the inventory) and is never recaptured on resume; the dry-run plan must list **host-level toolchain mutations** (`corepack enable`, `foundryup`, `uv init`); absent-mode gains an explicit discover-and-evaluate step for the repo's real instruction files; the statelessness gate runs from the **plugin's** copy on unscaffolded repos; and a missing org profile is recommended, never executed, mid-audit.
+
 ## 1.14.1 — the load-path doctrine was wrong, and it taught a live audit a false finding
 The kit asserted in seven places that a session started in a subdirectory "never loads the repo-root instruction files." Live evidence disproved it: `CLAUDE.md` auto-loads with an **upward walk** from the session's cwd — a root file reaches `dist/reporting` fine (verified directly, and the audited repo's own phase-0 plan had verified the same independently, labelled "diagnosed wrong once already"). The GHL-MCP audit repeated the kit's claim verbatim as finding M2 and had to retract it under PR review.
 

@@ -14,27 +14,32 @@ The organizing principle of this framework, and the one it most easily violates.
 Anything load-bearing should be a hook or a test. Instruction files carry
 reference and judgment, not enforcement.
 
-## The load-path defect
+## The load path
 
-*(Corrected 2026-08-11 — the first live test disproved this section's earlier
-claim that subdirectory sessions load no repo-root files.)*
+*(Corrected twice on 2026-08-11 — first the subdirectory claim, then the rules
+claim, both against live evidence and the Claude Code memory docs. Recording
+both corrections because each earlier version taught a live audit a false
+finding.)*
 
-`CLAUDE.md` auto-loads with an **upward walk** from the directory a session
-starts in — a root `CLAUDE.md` reaches a session started in `dist/` or
-`packages/x/` just fine (verified live: a root `CLAUDE.md` loaded from a
-session two directories deep). What does **not** auto-load, from anywhere:
-`AGENTS.md`-style guides, and this kit's `.claude/rules/*.md` modules.
+What current Claude Code auto-loads, per its memory documentation:
 
-That is the real load-path defect: without help, every session — root or
-subdirectory — gets **only `CLAUDE.md`**, never the rules modules; and a repo
-whose operating guide lives in a file that doesn't auto-load has no loaded
-rules at all. "The agent stopped reading the rules file" is still usually a
-configuration defect rather than a discipline problem — the file it "ignored"
-was never in context.
+- `CLAUDE.md` / `CLAUDE.local.md` — **upward walk** from the session's working
+  directory; a root file reaches a session started in `dist/` or `packages/x/`.
+- `.claude/rules/*.md` — discovered **recursively and loaded at launch** when
+  unscoped ("the same priority as `.claude/CLAUDE.md`"); rules with `paths:`
+  frontmatter load on demand when matching files are read. Symlinked rules
+  resolve normally.
 
-**The fix is `hooks/session-context.sh`**, a SessionStart hook that walks to the
-repo root and injects the rules index into every session. It ships in this kit
-and is wired by `/project-init`.
+What does **not** auto-load: `AGENTS.md`-style guides. The documented fix is a
+`CLAUDE.md` that imports it (`@AGENTS.md`) or a symlink — not a hook.
+
+**Where that leaves `hooks/session-context.sh`:** its original rationale
+(sessions don't see the rules) is obsolete on current CLI versions. It remains
+shipped as defense-in-depth for older CLIs and `--setting-sources` exclusions,
+pending the retire-or-rejustify decision in backlog **A15**. Do not cite it as
+the reason rules are in context, and verify actual loading with `/context`
+rather than inference. "The agent stopped reading the rules file" can still be
+a configuration defect — but establish it with evidence, not doctrine.
 
 Corollary: **never diagnose a repeated instruction failure as inattention until
 you have confirmed the instruction was actually in context.** Check the load path
