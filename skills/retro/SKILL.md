@@ -21,9 +21,9 @@ Question 5 produces more value than the other four combined.
 
 **First question for every violated rule: was it even in context?**
 Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_report.py"` — it answers this
-with counts rather than memory. Check the load path before diagnosing inattention. A session started in a
-subdirectory never loaded the repo-root instruction files. If `session-context.sh`
-is not wired, that is the finding — not the rule.
+with counts rather than memory. Check the load path before diagnosing inattention. If `session-context.sh`
+is not wired, no session ever had the rules modules in context — only
+`CLAUDE.md` auto-loads — and that is the finding, not the rule.
 
 **Second question: which layer should this have been in?**
 A rule that was in force and did not fire is usually mis-classified, not

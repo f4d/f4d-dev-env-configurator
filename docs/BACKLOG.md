@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.14.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.14.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -136,8 +136,11 @@ ST-01 false positive → **A13**; audit skill assumed a scaffolded repo → **ab
 mode + adoption-recommendation shipped in 1.14.0**; `session_report.py`'s no-log
 fallback behaved to spec; the report-document contract (dedicated branch, never
 pushed unasked) held in practice. Six PR-review findings on the shipped text →
-fixed in **1.13.1**. Still owed from the test: the A4/A5 kill/re-run acceptance
-proof.
+fixed in **1.13.1**. Review of the audit document itself then caught the kit's
+**load-path doctrine stating a false claim** (subdir sessions DO load a root
+`CLAUDE.md`; the modules are what never load) — corrected across seven sites in
+**1.14.1**, plus a no-markers rule for committed reports. Still owed from the
+test: the A4/A5 kill/re-run acceptance proof.
 
 ---
 

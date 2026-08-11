@@ -182,7 +182,7 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Before th
 2. `CLAUDE.md` — assembled from `templates/scaffold/CLAUDE.md.tmpl`, **kept under 80 lines**
 3. `.claude/rules/org.md` — the company's `constraints` block, copied verbatim from its org profile
 4. `.claude/rules/*.md` — copy only the selected modules from `${CLAUDE_PLUGIN_ROOT}/templates/rules/`, **plus `REGISTRY.md` always**. Then prune the registry to the rules this project actually holds, and set each row's `Today` column to what genuinely enforces it here. A registry asserting checks that do not exist is worse than none.
-5. `.claude/settings.json` — hooks wired, **including `SessionStart`**. This is not optional: without it, a session started in any subdirectory never loads the repo-root instruction files at all. See `templates/process/ENFORCEMENT.md`.
+5. `.claude/settings.json` — hooks wired, **including `SessionStart`**. This is not optional: `CLAUDE.md` auto-loads on its own (upward walk from the session's cwd), but the `.claude/rules/*.md` modules never do — without the hook every session runs on `CLAUDE.md` alone. See `templates/process/ENFORCEMENT.md`.
 6. `.claude/agents/*.md` — only the selected agents
 7. Local stack + `scripts/dev-reset.sh`:
    - Multi-instance project → `docker-compose.multi.yml` (two app instances, nginx round-robin, redis, and a **separate migrate step**) plus `scripts/nginx-lb.conf`. **This is the default.** One instance locally makes every statefulness bug invisible until production.
