@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.19.0 — A6: hook precedence, proven then documented
+Three-run empirical protocol on CLI 2.1.220 — a validity control (allower only → write succeeds), then a blocker paired with an allower in both orders: **blocked both times**. Contract now in ENFORCEMENT.md: all matching hooks run; any exit-2 blocks; a passing hook cannot override; order affects only which message shows first. Plugin and project hook arrays merge per the settings docs — a project hook never disables a plugin hook. Design consequence stated: hooks must be independent, never order-reliant. Runnable protocol committed as the acceptance artifact.
+
+
 ## 1.18.1 — telemetry is fail-closed for secret-class denies
 Round-4 review, both findings real. A C-01 deny can carry the secret anywhere in the command — a redirect payload (`printf sk-live-… > .env`), a quoted value, a key inside an RPC URL — shapes no assignment regex can enumerate. Secret-class rules (C-01, KS-01, KS-02) now **withhold the detail entirely**; the rule id and timestamp are the telemetry. Other rules keep assignment-redaction as defense in depth. Tested both ways (raw secrets proven absent from disk). And the harness now snapshots the kit's own enforcement log before running and asserts it is byte-identical after — a developer's legitimate local denies no longer fail the suite.
 
