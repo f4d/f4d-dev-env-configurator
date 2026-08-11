@@ -185,15 +185,16 @@ Read `references/scaffold-spec.md` for exact file contents and layout. At entry 
 2. `CLAUDE.md` — assembled from `templates/scaffold/CLAUDE.md.tmpl`, **kept under 80 lines**
 3. `.claude/rules/org.md` — the company's `constraints` block, copied verbatim from its org profile
 4. `.claude/rules/*.md` — copy only the selected modules from `${CLAUDE_PLUGIN_ROOT}/templates/rules/`. **Never copy `REGISTRY.md`** — instead write `.claude/rules/manifest.json`: `{"rules": [...], "overrides": {}}`, where `rules` lists the IDs from each selected module's section of the plugin registry (Core, Guards, and Silent degradation always). Add an `overrides` entry for any row whose enforcement genuinely differs in this project — a manifest asserting checks that do not exist is worse than none. Prove it resolves: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/render_registry.py" --validate` must pass. The project renders its registry view on demand; it never holds a copy that can drift.
-5. `.claude/settings.json` — hooks wired, **including `SessionStart`**. A15 decided: the hook's primary job is **session telemetry** (`.claude/.session-log` — the evidence `session_report.py` and `/retro` run on); rules loading is automatic on current CLIs (empirically verified, 2.1.220) and the injection is redundant defense-in-depth. Wire it for the telemetry; never cite it as the reason rules load — verify with `/context`. See `templates/process/ENFORCEMENT.md`.
-6. `.claude/agents/*.md` — only the selected agents
-7. Local stack + `scripts/dev-reset.sh`:
+5. `.claude/hooks/guard-local.sh` — copied from `templates/scaffold/guard-local.sh`, executable. This is A11's floor: a self-contained secrets+force-push guard that survives plugin absence (every other hook path is `${CLAUDE_PLUGIN_ROOT}/...` and silently vanishes with the plugin). Wire it in `settings.json` ALONGSIDE the plugin guard — A6 proved any exit-2 blocks regardless of order, so double-wiring is safe.
+6. `.claude/settings.json` — hooks wired, **including `SessionStart`**. A15 decided: the hook's primary job is **session telemetry** (`.claude/.session-log` — the evidence `session_report.py` and `/retro` run on); rules loading is automatic on current CLIs (empirically verified, 2.1.220) and the injection is redundant defense-in-depth. Wire it for the telemetry; never cite it as the reason rules load — verify with `/context`. See `templates/process/ENFORCEMENT.md`.
+7. `.claude/agents/*.md` — only the selected agents
+8. Local stack + `scripts/dev-reset.sh`:
    - Multi-instance project → `docker-compose.multi.yml` (two app instances, nginx round-robin, redis, and a **separate migrate step**) plus `scripts/nginx-lb.conf`. **This is the default.** One instance locally makes every statefulness bug invisible until production.
    - Single-instance project → `docker-compose.yml`, and ADR 002 recording that choice with its reversal cost.
-8. `verify` script in `package.json` and/or `Makefile`
-9. `.github/workflows/` — `verify.yml` running the same command, plus `claude.yml`, `claude-code-review.yml`, and `notion-sync.yml` from `${CLAUDE_PLUGIN_ROOT}/templates/github/` if the org profile has `claude_github_app: installed` and `notion_work_db` set. Copy `scripts/notion_sync.py` to `.github/scripts/`.
+9. `verify` script in `package.json` and/or `Makefile`
+10. `.github/workflows/` — `verify.yml` running the same command, plus `claude.yml`, `claude-code-review.yml`, and `notion-sync.yml` from `${CLAUDE_PLUGIN_ROOT}/templates/github/` if the org profile has `claude_github_app: installed` and `notion_work_db` set. Copy `scripts/notion_sync.py` to `.github/scripts/`.
    Also write `.github/ISSUE_TEMPLATE/bug.yml` and `feature.yml` — structured enough that `@claude` can act on a report directly.
-10. **Process layer** — always, regardless of project size:
+11. **Process layer** — always, regardless of project size:
    - `docs/specs/`, `docs/decisions/`, `docs/log.md`, `docs/intake.md`
    - `docs/LIFECYCLE.md`, `docs/DEFINITION.md`, `docs/ENFORCEMENT.md`, and `docs/TEST_STRATEGY.md` copied from `${CLAUDE_PLUGIN_ROOT}/templates/process/`
    - `tests/hooks_test.sh` copied from the kit, and wired into the verify command
@@ -205,8 +206,8 @@ Read `references/scaffold-spec.md` for exact file contents and layout. At entry 
    - `.gitignore` entries for `.claude/.session-log`, `.claude/.last-verify`, `.claude/.enforcement-log`, and `.claude/.init-state.json` — local telemetry and working state, not shared
    - `.github/pull_request_template.md` from `PR.template.md`
    - `docs/decisions/001-stack.md` — write the ADR for the stack chosen in this interview. The first decision is always the stack, and it is always worth recording.
-11. `README.md` — human-facing, distinct from CLAUDE.md
-12. First commit
+12. `README.md` — human-facing, distinct from CLAUDE.md
+13. First commit
 
 **Critical:** `CLAUDE.md` loads on every turn. Keep it to the architecture map, the commands, and the non-negotiables. Everything else goes in `.claude/rules/` where it loads only when relevant.
 

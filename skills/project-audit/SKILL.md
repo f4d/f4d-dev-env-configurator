@@ -74,6 +74,8 @@ checks below — they are available immediately.
 **Enforcement layer** — check this before anything else
 - Is `SessionStart` wired in `.claude/settings.json`? (Doctrine corrected twice, 2026-08-11 — current truth per the Claude Code memory docs: `CLAUDE.md` auto-loads with an upward walk AND unscoped `.claude/rules/*.md` auto-load at launch. On current CLI versions the hook is **not** what puts rules in context; treat its absence as losing **session-START records specifically** — the per-session denominator for rates. Deny fire counts still accrue independently (`guard.sh`/`rule-zero.sh` write `.claude/.enforcement-log` regardless), and `verify-record.sh` still writes verify entries to `.session-log`. (A15 decided: session-start telemetry is this hook's primary job; loading is automatic on current CLIs, verified empirically on 2.1.220.)) Verify actual loading with `/context`, not inference.
 - Are `rule-zero.sh` and `done-check.sh` wired?
+- Is `.claude/hooks/guard-local.sh` present, executable, and wired (A11)? Without it, uninstalling the plugin silently removes every guard — the fallback is the floor that survives.
+- Is the plugin installed **at the version `.claude/.framework-state.json` records**? A missing plugin means every `${CLAUDE_PLUGIN_ROOT}` hook has vanished; a version mismatch means the hooks running are not the hooks the project was scaffolded against.
 - For each rule in `.claude/rules/`, ask: is this mechanically enforceable, and is it enforced? List every enforceable-but-prose rule. That list is the real audit finding.
 - Are there near-duplicate files suggesting Rule 0 was not in force — `*V2`, `*-final`, `*-new`, `*-copy`, `*-updated`?
 
