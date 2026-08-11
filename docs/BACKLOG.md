@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.16.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.17.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -73,23 +73,17 @@ view reproduces the stored shape, unknown ID fails the audit.
 
 ---
 
-### A10 — No measurement of which rules fire · **medium** · effort M
+### A10 — No measurement of which rules fire · ✅ built in 1.17.0
 
-**Why:** hooks know exactly what they blocked; nothing records it. Pruning is
-guesswork and the 400-line budget is enforced by taste. Sharper signal available: a
-rule firing constantly is usually a **design** problem the guard is papering over.
-
-**Build:**
-1. Every `deny()` in `guard.sh` / `rule-zero.sh` appends
-   `TAB-separated: timestamp, rule_id, path_or_cmd_prefix` to `.claude/.enforcement-log`
-2. Tag each deny with its registry ID (C-01, C-05, ST-*, …) — currently they have prose reasons only
-3. `session_report.py` gains a rules-by-fire-count section
-4. `/retro` reads it: never-fired-in-6-months → prune candidate; fires-daily → design fix
-
-**Done when:** `session_report.py` prints a fire-count table and `/retro` cites it.
-
-**Files:** `hooks/guard.sh`, `hooks/rule-zero.sh`, `scripts/session_report.py`,
-`skills/retro/SKILL.md`
+Every deny logs `timestamp<TAB>rule_id<TAB>detail` to `.claude/.enforcement-log`
+via a shared `log_deny` in `_parse.sh` whose hard property is proven in the
+harness: telemetry can never change control flow — an unwritable log still
+exits 2. Denies tagged: C-01 (secrets ×3), C-02 (force-push), C-03 (destructive
+SQL), C-05 (rule-zero), G-03 (parse failure ×2), and three **UNREGISTERED**
+denies (broadcast, mainnet RPC, rm -rf) — the guard enforces rules the registry
+holds no row for; the fire report flags them as an honesty gap to resolve.
+`session_report.py` prints fire counts on every path (including no-session-log)
+with malformed-line disclosure; `/retro` cites the counts. Done-when met.
 
 ---
 
@@ -252,7 +246,7 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     A10  enforcement telemetry   ← start here
+NEXT     A13  ST-01 import-time false positive   ← start here
 
 SOON              A13  ST-01 import-time-registry false positive (from live test)
          A6   hook precedence

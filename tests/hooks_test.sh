@@ -85,7 +85,35 @@ if echo '{"tool_input":{"file_path":"/nonexistent/x.py"}}' | CLAUDE_FILE_PATHS="
   echo "  PASS  never blocks, even on a missing file"; pass=$((pass+1))
 else echo "  FAIL  format.sh must never block"; fail=$((fail+1)); fi
 
-rm -rf "$tmp" "$dc" "$dc2" "$vr" "$vr2"
+echo "enforcement telemetry (A10)"
+# 1. A deny writes one TSV line tagged with its rule ID.
+et=$(mktemp -d); ( cd "$et" && git init -q )
+echo '{"tool_input":{"command":"git push --force origin main"}}' | (cd "$et" && bash "$HOOKS/guard.sh" >/dev/null 2>&1)
+line=$( [ -f "$et/.claude/.enforcement-log" ] && tail -1 "$et/.claude/.enforcement-log" || echo "" )
+if printf '%s' "$line" | awk -F'\t' 'NF==3 && $2=="C-02" {exit 0} {exit 1}'; then
+  echo "  PASS  deny logs TSV with rule id (C-02)"; pass=$((pass+1))
+else echo "  FAIL  deny logs TSV with rule id (got: $line)"; fail=$((fail+1)); fi
+
+# 2. HARD PROPERTY: an unwritable log must never weaken the deny.
+et2=$(mktemp -d); ( cd "$et2" && git init -q && touch .claude )   # .claude as a FILE — mkdir will fail
+echo '{"tool_input":{"file_path":"/x/.env"}}' | (cd "$et2" && bash "$HOOKS/guard.sh" >/dev/null 2>&1); got=$?
+if [ "$got" -eq 2 ]; then echo "  PASS  deny still exits 2 when telemetry cannot write"; pass=$((pass+1))
+else echo "  FAIL  telemetry failure weakened the deny (got $got)"; fail=$((fail+1)); fi
+
+# 3. An allowed command writes nothing.
+et3=$(mktemp -d); ( cd "$et3" && git init -q )
+echo '{"tool_input":{"command":"pnpm test"}}' | (cd "$et3" && bash "$HOOKS/guard.sh" >/dev/null 2>&1)
+if [ ! -f "$et3/.claude/.enforcement-log" ]; then echo "  PASS  allow writes no telemetry"; pass=$((pass+1))
+else echo "  FAIL  allow wrote telemetry"; fail=$((fail+1)); fi
+
+# 4. rule-zero denies log C-05.
+et4=$(mktemp -d); ( cd "$et4" && git init -q && touch report.ts && git add -A )
+echo "{\"tool_input\":{\"file_path\":\"$et4/reportV2.ts\"}}" | (cd "$et4" && bash "$HOOKS/rule-zero.sh" >/dev/null 2>&1)
+if [ -f "$et4/.claude/.enforcement-log" ] && tail -1 "$et4/.claude/.enforcement-log" | grep -q "	C-05	"; then
+  echo "  PASS  rule-zero deny logs C-05"; pass=$((pass+1))
+else echo "  FAIL  rule-zero deny logs C-05"; fail=$((fail+1)); fi
+
+rm -rf "$tmp" "$dc" "$dc2" "$vr" "$vr2" "$et" "$et2" "$et3" "$et4"
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ] || exit 1

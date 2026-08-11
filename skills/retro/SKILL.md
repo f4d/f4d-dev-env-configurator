@@ -28,6 +28,13 @@ doctrine: current Claude Code auto-loads `CLAUDE.md` and unscoped
 setting-source exclusion, an old CLI, a path-scoped rule that never matched —
 and that cause is the finding, not the rule.
 
+**Also read the fire counts** (A10): `session_report.py` prints denies by rule
+ID from `.claude/.enforcement-log`. A rule firing constantly is usually a
+design problem the guard is papering over — fix the design, not the message. A
+rule that has never fired across many sessions is a prune candidate. Any
+`UNREGISTERED` fires mean the guard enforces something the registry holds no
+row for — a registry-honesty gap to resolve.
+
 **Second question: which layer should this have been in?**
 A rule that was in force and did not fire is usually mis-classified, not
 under-emphasized. Restating it more firmly changes nothing.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.0 — A10: enforcement telemetry
+Hooks knew exactly what they blocked; nothing recorded it. Now every deny appends `timestamp<TAB>rule_id<TAB>detail` to `.claude/.enforcement-log` (shared `log_deny` in `_parse.sh`), each deny carries its registry ID in both the log and the block message, and `session_report.py` prints rules-by-fire-count on every path with an explicit flag for `UNREGISTERED` fires — three guard denies (broadcast, mainnet RPC, `rm -rf`) enforce rules the registry holds no row for, which is now visible instead of implicit. `/retro` reads the counts: fires-daily is a design problem the guard papers over; never-fires is a prune candidate. The hard property is tested (28-case harness): **telemetry can never weaken a deny** — with `.claude` unwritable the block still exits 2, and allowed commands write nothing.
+
+
 ## 1.16.1 — A4/A5 acceptance proven
 The kill/re-run protocol ran against v1.16.0 in a scratch repo: killed after Round 2 → resumed at Round 3 with nothing re-asked; killed mid-scaffold after 6 files → resumed skipping exactly those (byte-identical, SHA-verified), completed 19 files with no duplication; commit-step re-entry skipped via `phases`; state deleted only after the Step-4 subset passed; `--plan` wrote zero files and its predeclared file-list matched `git ls-files` exactly (P-04). Also the A2 manifest's first scaffold exercise (22 rules validated). Verbatim evidence: `docs/acceptance/2026-08-11-a4-a5-acceptance.md`, honest bounds included (single-agent run; fresh-session gold proof still recommended; rich-scaffold verify is O4).
 

@@ -202,7 +202,7 @@ Read `references/scaffold-spec.md` for exact file contents and layout. Before th
    - `.github/workflows/preflight.yml` — asserts required secrets exist before anything depends on them
    - Set the `SINGLE_INSTANCE` repo variable to `1` for single-instance projects, so the statelessness gate does not fire wrongly. A gate that fires wrongly gets disabled, and a disabled gate protects nothing.
    - Run `scripts/upgrade.py --apply` once at the end to record the framework baseline in `.claude/.framework-state.json`. Without it, the first upgrade cannot tell a local customization from a framework change.
-   - `.gitignore` entries for `.claude/.session-log`, `.claude/.last-verify`, and `.claude/.init-state.json` — local telemetry and working state, not shared
+   - `.gitignore` entries for `.claude/.session-log`, `.claude/.last-verify`, `.claude/.enforcement-log`, and `.claude/.init-state.json` — local telemetry and working state, not shared
    - `.github/pull_request_template.md` from `PR.template.md`
    - `docs/decisions/001-stack.md` — write the ADR for the stack chosen in this interview. The first decision is always the stack, and it is always worth recording.
 11. `README.md` — human-facing, distinct from CLAUDE.md
