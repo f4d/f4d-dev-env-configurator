@@ -164,6 +164,8 @@ because every environment before production is single-instance.
 
 ## Reading this file
 
+- **IDs are permanent once issued (A9).** Never renumber, split, or reuse an ID — project manifests reference them forever. Superseding a rule takes a **new** ID plus a `Superseded by <new-ID>` note in the old row. `render_registry.py --validate` and `upgrade.py` fail on any reference to an ID that no longer exists.
+- **Projects do not copy this file (A2).** A project holds `.claude/rules/manifest.json` (`{"rules": [...], "overrides": {...}}`) and renders its view on demand with `scripts/render_registry.py`. A committed `REGISTRY.md` in a project is stale by definition.
 - **`PROSE` on a mechanisable rule is debt.** The promote-when column is its ticket.
 - Several rules are `PROSE` because they only apply to some projects. `M-02` matters when the project moves money and is noise otherwise. Those promote at project setup, not globally — `/project-init` turns them on with the module.
 - **`JUDGMENT` is finished.** Do not try to mechanize it; you will get false positives and people will disable the check.

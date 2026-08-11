@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.15.0 — A2: the registry as a rendered view (A9 closed with it)
+The framework's registry was S-05 committed by the framework that defines S-05: `/project-init` copied `REGISTRY.md` into every project and pruned it, so the framework registry and N project copies could disagree with no detection.
+
+Now a project holds only `.claude/rules/manifest.json` (`{"rules": [...], "overrides": {...}}`). Rule text and status live in one place — the plugin registry — and `scripts/render_registry.py` renders a project's view on demand; `--validate` fails on any broken reference. Fail-loud throughout (G-03): unknown ID, override on an unheld rule, empty rules list, unknown manifest key, missing or unparseable inputs, and duplicate IDs on either side all block — an empty rendering that "worked" would be S-01 committed by the tool built to prevent it. `upgrade.py` reconciles manifests: new plugin rules surface as adoption candidates, a committed project `REGISTRY.md` flags as `STALE-REGISTRY`, and broken references exit 1. `REGISTRY.md` itself now states ID permanence (A9): supersede with a new ID, never renumber.
+
+Proofs: `tests/render_registry_test.sh`, 11 cases, every fail-loud path seen red first; plus a live `upgrade.py` red/green exit-code check. `/project-init` writes manifests instead of copies; `/project-audit` validates them and treats a committed registry copy as a finding.
+
 ## 1.14.2 — round-2 review fixes, and the load-path doctrine corrected a second time
 Nine review findings on #5/#6/#7, all verified. The big one: **1.14.1's correction was itself incomplete** — per the Claude Code memory docs, unscoped `.claude/rules/*.md` **auto-load at launch** (recursively, same priority as `.claude/CLAUDE.md`), so the claim that "only CLAUDE.md auto-loads" was false too. All doctrine sites now state the docs-verified truth; `session-context.sh` is re-labelled defense-in-depth pending **A15** (retire or re-justify, with an empirical `/context` test — its session-log telemetry job must survive either way). `session_report.py`'s decide-now branch no longer treats subdirectory starts as a broken load path (every logged session ran the hook that wrote the log).
 

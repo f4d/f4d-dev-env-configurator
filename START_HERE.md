@@ -15,6 +15,7 @@ git log --oneline
 
 # 2. Confirm everything still passes
 bash tests/hooks_test.sh                      # expect: pass=24 fail=0
+bash tests/render_registry_test.sh            # expect: pass=11 fail=0
 python3 scripts/check_statelessness.py        # expect: clean
 python3 scripts/check_guess_lists.py          # expect: clean
 
@@ -37,11 +38,11 @@ git remote -v   # expect: github.com/f4d/f4d-dev-env-configurator
 
 ## Resuming work
 
-`docs/BACKLOG.md` §6 has the priority order. Top unstarted code item is **A2 —
-registry as manifest** (A4 shipped in 1.11.0; its live acceptance test is still
-owed). Every backlog item carries why it matters, numbered build steps, done-when
-criteria, and the files it touches, so it can be picked up without re-deriving
-anything.
+`docs/BACKLOG.md` §6 has the priority order. Top unstarted code items are the
+**C-06 · D-06 · S-07 trio** (all S, do together); A2 shipped in 1.15.0, and the
+A4/A5 live acceptance test is still owed. Every backlog item carries why it
+matters, numbered build steps, done-when criteria, and the files it touches, so
+it can be picked up without re-deriving anything.
 
 ## Using it on another project
 
