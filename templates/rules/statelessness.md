@@ -61,3 +61,27 @@ isolation.
 - A restart test: kill the process mid-flow, confirm nothing was lost.
 - If any of the above is impractical, **name what would catch the problem instead**.
   Silence reads as "stateless."
+
+## Import-time registries (the sanctioned ST-01 exception)
+
+First live test of the kit (GHL-MCP, 2026-08-10) hit this false positive, so it
+is now doctrine:
+
+A module-level mutable collection whose **only** mutations are module-top-level
+registration calls — the pattern
+
+```ts
+const registry: Record<string, Component> = {};            // stateless-ok import-time registration — populated only by top-level registerX() calls below/in importers
+export function registerX(key, c) { registry[key] = c; }   // called ONLY at module top level
+```
+
+is **static after load**: every instance evaluates the same modules and ends
+with an identical registry. No cross-instance drift is possible. Annotate the
+declaration `stateless-ok import-time registration — <who registers>`.
+
+The boundary, and it is sharp: the moment any handler, request path, or
+runtime event calls the register function, this is real ST-01 — the scanner
+cannot see call-site timing across files, so **the annotation is a claim a
+reviewer verifies**, exactly like every other `stateless-ok`. When you annotate,
+grep the register function's call sites and confirm all of them are module
+top level; cite that in the reason.
