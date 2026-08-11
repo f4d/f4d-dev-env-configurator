@@ -49,8 +49,8 @@ python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_report.py"
 ```
 
 It reports counts, not recollection: how many sessions started outside the repo
-root (and therefore loaded no rules), how often verify actually ran, and whether
-the rules set changed mid-window. **If sessions started in subdirectories, every
+root (a relative-path risk signal — `CLAUDE.md` still loads from there), how
+often verify actually ran, and whether the rules set changed mid-window. **If sessions started in subdirectories, every
 conclusion about "the rules were ignored" is unreliable for those sessions.** Fix
 the load path, then re-read.
 
@@ -58,7 +58,7 @@ If there is no log yet, do not wait for one. Say so, and fall back to the static
 checks below — they are available immediately.
 
 **Enforcement layer** — check this before anything else
-- Is `SessionStart` wired in `.claude/settings.json`? If not, **every session started outside the repo root has been running with no rules loaded.** Report this first; it invalidates any conclusion that "the rules were ignored."
+- Is `SessionStart` wired in `.claude/settings.json`? If not, **no session — root or subdirectory — has ever had the rules modules in context; only `CLAUDE.md` auto-loads.** Report this first; it invalidates any conclusion that "the rules were ignored." (Corrected 2026-08-11: subdirectory starts do NOT lose `CLAUDE.md` — it walks up. The loss is the modules, everywhere.)
 - Are `rule-zero.sh` and `done-check.sh` wired?
 - For each rule in `.claude/rules/`, ask: is this mechanically enforceable, and is it enforced? List every enforceable-but-prose rule. That list is the real audit finding.
 - Are there near-duplicate files suggesting Rule 0 was not in force — `*V2`, `*-final`, `*-new`, `*-copy`, `*-updated`?
@@ -155,3 +155,8 @@ document is the only file the audit writes.** Sections, in order:
    action: merging the report adopts nothing.
 
 Rank everything by what will bite soonest. Then ask: *"Want me to fix these, or start with the top three?"* Never fix unasked — the report document is the deliverable; applying it is a separate decision.
+
+**No in-progress markers may survive into the committed report.** Before
+committing, scan the document for pending/placeholder sentinels ("in progress",
+"recorded once … completes", "TBD") — finish them or remove them. A report that
+ships both a result and a placeholder for that result publishes two truths.

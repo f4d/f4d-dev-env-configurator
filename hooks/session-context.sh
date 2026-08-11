@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # SessionStart hook — fixes the load-path defect.
 #
-# CLAUDE.md and AGENTS.md only auto-load from the directory a session starts in.
-# A session started in dist/, packages/x/, or any subdirectory never sees the
-# repo-root instruction files. That is a configuration defect, not a discipline
-# problem: no amount of "remember to read the rules" fixes it.
+# CLAUDE.md auto-loads (upward walk from the session's cwd — root files DO reach
+# subdirectory sessions; verified live 2026-08-11). What never auto-loads is the
+# rest: AGENTS.md-style guides and the .claude/rules/*.md modules. Without this
+# hook every session gets only CLAUDE.md and none of the modules — a
+# configuration defect, not a discipline problem: no amount of "remember to
+# read the rules" fixes it.
 #
 # This hook walks up to the repo root and injects the rules index into every
 # session regardless of where it started.

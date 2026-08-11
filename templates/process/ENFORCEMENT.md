@@ -16,16 +16,25 @@ reference and judgment, not enforcement.
 
 ## The load-path defect
 
-`CLAUDE.md` and `AGENTS.md` auto-load from the directory a session **starts in**.
-A session started in `dist/`, `packages/x/`, or any subdirectory never sees the
-repo-root instruction files at all.
+*(Corrected 2026-08-11 — the first live test disproved this section's earlier
+claim that subdirectory sessions load no repo-root files.)*
 
-This is why "the agent stopped reading the rules file" is usually a configuration
-defect rather than a discipline problem — and why asking harder never fixes it.
+`CLAUDE.md` auto-loads with an **upward walk** from the directory a session
+starts in — a root `CLAUDE.md` reaches a session started in `dist/` or
+`packages/x/` just fine (verified live: a root `CLAUDE.md` loaded from a
+session two directories deep). What does **not** auto-load, from anywhere:
+`AGENTS.md`-style guides, and this kit's `.claude/rules/*.md` modules.
+
+That is the real load-path defect: without help, every session — root or
+subdirectory — gets **only `CLAUDE.md`**, never the rules modules; and a repo
+whose operating guide lives in a file that doesn't auto-load has no loaded
+rules at all. "The agent stopped reading the rules file" is still usually a
+configuration defect rather than a discipline problem — the file it "ignored"
+was never in context.
 
 **The fix is `hooks/session-context.sh`**, a SessionStart hook that walks to the
-repo root and injects the rules index regardless of where the session began. It
-ships in this kit and is wired by `/project-init`.
+repo root and injects the rules index into every session. It ships in this kit
+and is wired by `/project-init`.
 
 Corollary: **never diagnose a repeated instruction failure as inattention until
 you have confirmed the instruction was actually in context.** Check the load path

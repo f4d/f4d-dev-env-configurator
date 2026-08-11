@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.14.1 — the load-path doctrine was wrong, and it taught a live audit a false finding
+The kit asserted in seven places that a session started in a subdirectory "never loads the repo-root instruction files." Live evidence disproved it: `CLAUDE.md` auto-loads with an **upward walk** from the session's cwd — a root file reaches `dist/reporting` fine (verified directly, and the audited repo's own phase-0 plan had verified the same independently, labelled "diagnosed wrong once already"). The GHL-MCP audit repeated the kit's claim verbatim as finding M2 and had to retract it under PR review.
+
+What was, and remains, true: `AGENTS.md`-style guides and the `.claude/rules/*.md` modules never auto-load — without `session-context.sh` every session runs on `CLAUDE.md` alone. All seven sites now state that; `session_report.py`'s subdirectory FINDING is downgraded to a relative-path NOTE (doubly wrong before: sessions in its log had, by construction, run the hook that wrote the log). The hook itself is unchanged and still ships.
+
+Also from the same review round: **no in-progress markers may survive into a committed audit report** — the live audit shipped a "recorded once the run completes" placeholder alongside the completed result.
+
 ## 1.14.0 — what the first live test taught the audit
 `/project-audit` ran for the first time against a real, unscaffolded repo (GHL-MCP, on a scratch clone → their PR #1042) and two structural gaps surfaced.
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Reads .claude/.session-log and answers, with counts rather than recollection:
-  - How many sessions started outside the repo root (rules would not have loaded)
+  - How many sessions started outside the repo root (relative-path risk signal;
+    CLAUDE.md still auto-loads from subdirectories — corrected 2026-08-11)
   - Whether the rules count has been stable
   - How often verify actually ran
 
@@ -51,10 +52,10 @@ def main():
     print()
 
     if sub:
-        print(f"FINDING: {sub} of {n} sessions started outside the repo root.")
-        print("Without the SessionStart hook those sessions loaded NO repo rules.")
-        print("Any earlier conclusion that 'the rules were ignored' is unreliable")
-        print("for those sessions — the rules were never in context.")
+        print(f"NOTE: {sub} of {n} sessions started outside the repo root.")
+        print("CLAUDE.md still loads there (upward walk), and every session in")
+        print("this log had the SessionStart hook (it wrote the log). Treat this")
+        print("as a relative-path risk signal, not a rules-loading failure.")
         print("Top start directories:")
         for d, c in dirs.most_common(5):
             print(f"  {c:>4}  {d}")

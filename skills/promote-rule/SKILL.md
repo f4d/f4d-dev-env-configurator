@@ -21,10 +21,11 @@ Ask the question that decides everything:
 
 > **Was the rule in context when it was violated?**
 
-Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_report.py"`. If sessions
-started outside the repo root, the rule may never have loaded — and the fix is
-the load path, **not** a promotion. Promoting a rule that was never read solves
-nothing and adds a check nobody understands.
+Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_report.py"`. If
+`session-context.sh` is not wired, the rule module was never in any session's
+context (only `CLAUDE.md` auto-loads) — and the fix is the load path, **not** a
+promotion. Promoting a rule that was never read solves nothing and adds a check
+nobody understands.
 
 ---
 
