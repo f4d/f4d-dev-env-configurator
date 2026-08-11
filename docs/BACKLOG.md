@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.20.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.21.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -23,7 +23,7 @@
 | Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | 54 | `tests/hooks_test.sh` (24) + `render_registry_test.sh` (11) + `gate_trio_test.sh` (19), all passing |
+| Tests | 102 | hooks (35) + render_registry (11) + gate_trio (23) + statelessness (4) + conformance (29), all passing |
 
 **Rule status:** 40 mechanically enforced · 12 tracked debt with triggers · 13 judgment · rest scaffold/agent.
 
@@ -202,7 +202,7 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 
 | ID | Item | Value |
 |---|---|---|
-| O4 | Conformance suite: scaffold a throwaway project per module combo, assert verify passes on the empty scaffold — **now also owns**: full-spec plan/execute parity (the A4/A5 acceptance proved parity over a 19-file subset; workflows, issue templates, guard tests, and the framework-state baseline were not exercised) and full-Step-4 delete-on-success discipline | **The scaffolder is the least-tested component in a system whose premise is testing** |
+| O4 | ✅ tier 1 built in 1.21.0 (`tests/conformance_test.sh`: workflows + rendered compose templates parse, executables +x, every registry section resolves as a manifest, every spec-referenced template exists). Tier 2 (behavioral, agent-run) specified in `docs/acceptance/O4-protocol.md` — owns full-spec parity, verify-green-on-empty per combo, and failing-verify-keeps-state; cadence: one rich combo per minor, all five before v2.0 | **The scaffolder is the least-tested component in a system whose premise is testing** |
 | O5 | Extract the doctrine (`silent-degradation`, `guards`, `capability-parity`) as a portable artifact | Most valuable content, least tool-coupled; survives a move off Claude Code |
 | O6 | Cross-project rule analytics | Fires everywhere → always-on. Never anywhere → delete. One repo only → local problem |
 | O2b | `/project-audit` asks the *unanswered* interview questions on an existing repo | Turns retrofit into a partial interview (A4 built — unblocked) |
@@ -225,7 +225,7 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     O4   conformance suite   ← start here
+NEXT     O4 tier-2 combo runs (one per minor)  ·  then LATER items
 
 SOON              O4   conformance suite (now also owns: full-spec plan/execute parity + full-Step-4 delete discipline)
 
