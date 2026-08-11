@@ -37,11 +37,19 @@ log_deny() {
   local root
   root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
   mkdir -p "$root/.claude" 2>/dev/null || return 0
-  # REDACT before persisting: C-01 denies carry the very credential the guard
-  # exists to keep out of files. The log must never become the leak.
-  detail=$(printf '%s' "$detail" \
-    | sed -E 's/([A-Za-z_]*(KEY|TOKEN|SECRET|PASS(WORD)?|MNEMONIC|CREDENTIAL)[A-Za-z_]*[[:space:]]*=)[^[:space:]]+/\1[REDACTED]/Ig' \
-    2>/dev/null) || detail="[redaction failed — detail withheld]"
+  # FAIL-CLOSED for secret-class rules: a C-01/KS-* deny is EXPECTED to carry a
+  # secret somewhere in the command — as an assignment, a redirect target's
+  # payload, or a key embedded in an RPC URL. No regex can enumerate those
+  # shapes, so for these rules the detail is withheld entirely; the rule id and
+  # timestamp are the telemetry. For every other rule, assignment-shaped values
+  # are redacted as defense in depth.
+  case "$rule" in
+    C-01|KS-01|KS-02) detail="[withheld — secret-class deny]" ;;
+    *)
+      detail=$(printf '%s' "$detail" \
+        | sed -E 's/([A-Za-z_]*(KEY|TOKEN|SECRET|PASS(WORD)?|MNEMONIC|CREDENTIAL)[A-Za-z_]*[[:space:]]*=)[^[:space:]]+/\1[REDACTED]/Ig' \
+        2>/dev/null) || detail="[redaction failed — detail withheld]" ;;
+  esac
   printf '%s\t%s\t%s\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rule" "$(printf '%s' "$detail" | head -c 120 | tr '\n\t' '  ')" \
     >> "$root/.claude/.enforcement-log" 2>/dev/null || true
