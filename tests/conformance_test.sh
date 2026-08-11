@@ -13,6 +13,13 @@ pass=0; fail=0
 ok()  { echo "  PASS  $1"; pass=$((pass+1)); }
 bad() { echo "  FAIL  $1"; fail=$((fail+1)); }
 
+# Dependency preflight — fail loud ONCE, not ten confusing times (G-03).
+if ! python3 -c "import yaml" 2>/dev/null; then
+  echo "  FAIL  PyYAML is required for the YAML checks: pip3 install pyyaml"
+  echo "pass=0 fail=1"
+  exit 1
+fi
+
 echo "workflows parse"
 for f in "$KIT"/templates/github/*.yml; do
   if python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$f" 2>/dev/null; then
@@ -66,16 +73,57 @@ PY
 rm -rf "$T"
 if [ "$section_failures" -eq 0 ]; then ok "all registry sections resolve as manifests"; else bad "$section_failures registry section manifest(s) failed to resolve"; fi
 
-echo "spec references exist (the missing-piece class)"
+echo "spec-mandated artifacts exist (the missing-piece class)"
+# Two layers: (a) literal templates/ paths scraped from the init spec, and
+# (b) a CURATED list of everything Step 3/10 mandates by prose — directory
+# copies, brace patterns, and named files a path-regex cannot see. The curated
+# list is a test fixture: when the spec adds an output, add it here (the
+# gate_trio/G-05 discipline applied to the spec itself).
 refs=$(grep -ohE 'templates/[a-z]+/[A-Za-z0-9._-]+\.(md|yml|tmpl|sh|py|conf|json)' \
   "$KIT/skills/project-init/SKILL.md" "$KIT/skills/project-init/references/scaffold-spec.md" 2>/dev/null | sort -u)
+MANDATED="
+templates/process/LIFECYCLE.md
+templates/process/DEFINITION.md
+templates/process/ENFORCEMENT.md
+templates/process/TEST_STRATEGY.md
+templates/process/CADENCE.md
+templates/process/PR.template.md
+templates/process/ADR.template.md
+templates/process/SPEC.template.md
+templates/tests/guard_tests.py
+templates/tests/guard_tests.ts
+templates/tests/statelessness_test.py
+templates/github/gates.yml
+templates/github/claude.yml
+templates/github/claude-code-review.yml
+templates/github/notion-sync.yml
+templates/github/preflight.yml
+templates/github/bug.yml
+templates/github/feature.yml
+templates/org/ORG.template.yml
+templates/notion/WORK_DB_SCHEMA.md
+scripts/notion_sync.py
+scripts/check_fixtures.py
+scripts/check_contract_pin.py
+scripts/check_guess_lists.py
+scripts/check_rollback.py
+scripts/check_statelessness.py
+scripts/check_commits.py
+scripts/check_raw_sql.py
+scripts/check_pure_imports.py
+scripts/upgrade.py
+scripts/render_registry.py
+scripts/session_report.py
+tests/hooks_test.sh
+"
 missing=0; total=0
 while IFS= read -r f; do
   [ -z "$f" ] && continue
   total=$((total+1))
   [ -e "$KIT/$f" ] || { bad "referenced by the init spec but missing: $f"; missing=$((missing+1)); }
-done <<< "$refs"
-[ "$missing" -eq 0 ] && ok "every templates/ path the init spec references exists ($total refs)"
+done <<< "$refs
+$MANDATED"
+[ "$missing" -eq 0 ] && ok "every spec-mandated artifact exists ($total checked: scraped + curated)"
 
 echo
 echo "pass=$pass fail=$fail"

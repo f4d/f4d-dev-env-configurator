@@ -59,3 +59,18 @@ describe("S-02", () => {
     expect(() => assertNoRawIds("Owner: Ian Lowell", "profile")).not.toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// S-04 — a new value/type/shape must fail a check, never degrade to a default.
+// The exhaustiveness pattern: every switch over a union ends in assertNever.
+// When the union gains a member, COMPILATION fails at every unhandled switch —
+// the new value cannot silently fall into a default arm.
+export function assertNever(x: never, context = "value"): never {
+  throw new Error(`Unhandled ${context}: ${JSON.stringify(x)} — a new union member reached a switch that does not handle it (S-04)`);
+}
+// Usage:
+//   switch (kind) {
+//     case "a": ...; break;
+//     case "b": ...; break;
+//     default: assertNever(kind, "RecordKind");
+//   }

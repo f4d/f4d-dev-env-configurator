@@ -23,9 +23,11 @@ cmd=$(field "command")
 [ -z "$cmd" ] && cmd=$(field "file_path")
 [ -z "$cmd" ] && cmd=$(field "path")
 
-# G-03: a guard that cannot read its input must block, not shrug.
-if [ -z "$cmd" ] && [ -n "$input" ] && ! printf '%s' "$input" | grep -q '"tool_input"'; then
-  echo "BLOCKED by guard-local [G-03]: could not parse the tool input; refusing to allow unverified." >&2
+# G-03: a guard that cannot read its input must block, not shrug. Wired with a
+# matcher, so every payload must yield a field — a bare "tool_input" key is not
+# proof of anything ({"tool_input":{}} and truncated payloads must block).
+if [ -z "$cmd" ] && [ -n "$input" ]; then
+  echo "BLOCKED by guard-local [G-03]: could not extract a command or path from the tool input; refusing to allow unverified." >&2
   exit 2
 fi
 [ -z "$cmd" ] && exit 0
@@ -35,7 +37,7 @@ case "$cmd" in
   *".env"*|*"id_rsa"*|*".pem"*|*"credentials.json"*|*"keystore"*|*"mnemonic"*|*".key"*|*"PRIVATE_KEY"*|*"SECRET_KEY"*|*"_TOKEN="*|*"API_KEY="*)
     echo "BLOCKED by guard-local [C-01]: secret material is off-limits (fallback guard — plugin may be absent)." >&2
     exit 2 ;;
-  *"git push --force"*|*"push -f "*)
+  *"git push --force"*|*"push -f "*|*"push -f")
     echo "BLOCKED by guard-local [C-02]: force-push is human-only (fallback guard — plugin may be absent)." >&2
     exit 2 ;;
 esac

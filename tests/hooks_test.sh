@@ -28,6 +28,9 @@ check "blocks DROP DATABASE"   2 guard.sh '{"tool_input":{"command":"psql -c \"D
 check "blocks --broadcast"     2 guard.sh '{"tool_input":{"command":"forge script X --broadcast"}}'
 check "allows normal command"  0 guard.sh '{"tool_input":{"command":"pnpm test"}}'
 check "FAILS LOUD on garbage"  2 guard.sh 'not json at all'
+check "blocks empty tool_input (schema drift)" 2 guard.sh '{"tool_input":{}}'
+check "blocks truncated payload"               2 guard.sh '{"tool_input":oops'
+check "blocks TERMINAL push -f"                2 guard.sh '{"tool_input":{"command":"git push -f"}}'
 
 echo "rule-zero.sh"
 check "blocks V2 variant"      2 rule-zero.sh "{\"tool_input\":{\"file_path\":\"$tmp/reportV2.ts\"}}"
@@ -101,6 +104,10 @@ echo '{"tool_input":{"command":"pnpm test"}}' | (cd "$gl" && bash "$GL") >/dev/n
 if [ "$got" -eq 0 ]; then echo "  PASS  fallback allows normal command"; pass=$((pass+1)); else echo "  FAIL  fallback allows normal (got $got)"; fail=$((fail+1)); fi
 echo 'not json at all' | (cd "$gl" && bash "$GL") >/dev/null 2>&1; got=$?
 if [ "$got" -eq 2 ]; then echo "  PASS  fallback FAILS LOUD on garbage"; pass=$((pass+1)); else echo "  FAIL  fallback fail-loud (got $got)"; fail=$((fail+1)); fi
+echo '{"tool_input":{}}' | (cd "$gl" && bash "$GL") >/dev/null 2>&1; got=$?
+if [ "$got" -eq 2 ]; then echo "  PASS  fallback blocks empty tool_input"; pass=$((pass+1)); else echo "  FAIL  fallback empty tool_input (got $got)"; fail=$((fail+1)); fi
+echo '{"tool_input":{"command":"git push -f"}}' | (cd "$gl" && bash "$GL") >/dev/null 2>&1; got=$?
+if [ "$got" -eq 2 ]; then echo "  PASS  fallback blocks TERMINAL push -f"; pass=$((pass+1)); else echo "  FAIL  fallback terminal -f (got $got)"; fail=$((fail+1)); fi
 rm -rf "$gl"
 
 echo "enforcement telemetry (A10)"

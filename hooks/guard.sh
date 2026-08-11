@@ -8,11 +8,14 @@ cmd=$(hook_field "$input" "command")
 [ -z "$cmd" ] && cmd=$(hook_field "$input" "file_path")
 [ -z "$cmd" ] && cmd=$(hook_field "$input" "path")
 
-# A guard that cannot read its input must not pretend to pass.
-if [ -z "$cmd" ] && hook_parse_failed "$input"; then
-  log_deny "G-03" "unparseable tool input"
-  echo "BLOCKED: guard.sh could not parse the tool input, so it cannot verify safety." >&2
-  echo "Install jq or python3, or fix the hook. Refusing to allow unverified." >&2
+# A guard that cannot read its input must not pretend to pass. This hook is
+# wired with a matcher (Write|Edit|Bash), so every payload it sees MUST yield a
+# command or path — key-present-but-nothing-extracted is a parse failure, not
+# a pass ({"tool_input":{}} and truncated payloads land here).
+if [ -z "$cmd" ] && [ -n "$input" ]; then
+  log_deny "G-03" "no extractable field from tool input"
+  echo "BLOCKED: guard.sh could not extract a command or path from the tool input." >&2
+  echo "Install jq or python3, or fix the hook/matcher. Refusing to allow unverified." >&2
   exit 2
 fi
 [ -z "$cmd" ] && exit 0
@@ -38,7 +41,7 @@ case "$cmd" in
       deny "C-09" "destructive command." ;;
   *"DROP DATABASE"*|*"TRUNCATE"*|*"drop schema"*)
       deny "C-03" "destructive database operation. Use a migration, or scripts/dev-reset.sh locally." ;;
-  *"git push --force"*|*"push -f "*)
+  *"git push --force"*|*"push -f "*|*"push -f")
       deny "C-02" "force-push is human-only." ;;
 esac
 exit 0

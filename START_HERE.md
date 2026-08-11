@@ -14,9 +14,9 @@ bash bootstrap.sh
 git log --oneline
 
 # 2. Confirm everything still passes
-bash tests/hooks_test.sh                      # expect: pass=35 fail=0
+bash tests/hooks_test.sh                      # expect: pass=40 fail=0
 bash tests/render_registry_test.sh            # expect: pass=11 fail=0
-bash tests/gate_trio_test.sh                  # expect: pass=23 fail=0
+bash tests/gate_trio_test.sh                  # expect: pass=35 fail=0
 bash tests/statelessness_test.sh              # expect: pass=4 fail=0
 bash tests/conformance_test.sh                # expect: pass=29 fail=0
 python3 scripts/check_statelessness.py        # expect: clean
