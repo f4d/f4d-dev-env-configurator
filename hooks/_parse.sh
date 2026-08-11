@@ -25,3 +25,20 @@ hook_parse_failed() {
   local json="$1"
   [ -n "$json" ] && ! printf '%s' "$json" | grep -q '"tool_input"'
 }
+
+# A10 — enforcement telemetry. Appends: ISO-time <TAB> rule_id <TAB> detail
+# to .claude/.enforcement-log at the repo root of the cwd.
+#
+# HARD PROPERTY: this function must never change control flow. Every failure
+# path returns 0 — an unwritable log must never weaken a deny, and a deny must
+# never be delayed waiting on telemetry. The guard blocks; the log is a bonus.
+log_deny() {
+  local rule="$1" detail="${2-}"
+  local root
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+  mkdir -p "$root/.claude" 2>/dev/null || return 0
+  printf '%s\t%s\t%s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rule" "$(printf '%s' "$detail" | head -c 120 | tr '\n\t' '  ')" \
+    >> "$root/.claude/.enforcement-log" 2>/dev/null || true
+  return 0
+}

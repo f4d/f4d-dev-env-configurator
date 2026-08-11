@@ -12,6 +12,7 @@ set -uo pipefail
 input=$(cat)
 path=$(hook_field "$input" "file_path")
 if [ -z "$path" ] && hook_parse_failed "$input"; then
+  log_deny "G-03" "unparseable tool input (rule-zero)"
   echo "BLOCKED: rule-zero.sh could not parse the tool input." >&2
   echo "Install jq or python3. Refusing to allow unverified file creation." >&2
   exit 2
@@ -38,6 +39,7 @@ matches=$(find "$dir" -maxdepth 1 -type f -iname "*${concept}*.${ext}" 2>/dev/nu
 [ -z "$matches" ] && matches=$(git -C "$root" ls-files "*${concept}*.${ext}" 2>/dev/null | head -5)
 
 if [ -n "$matches" ]; then
+  log_deny "C-05" "$path"
   {
     echo "BLOCKED by Rule 0 — a canonical home may already exist for '${concept}'."
     echo "Existing:"

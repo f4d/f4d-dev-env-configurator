@@ -25,6 +25,7 @@ def main():
     if not os.path.exists(path):
         print("No session log yet.")
         print("Wire hooks/session-context.sh, then re-run after a few sessions.")
+        fire_report(os.path.join(root, ".claude", ".enforcement-log"))
         return 0
 
     starts, verifies, dirs, rulecounts = [], 0, Counter(), Counter()
@@ -40,6 +41,7 @@ def main():
     n = len(starts)
     if n == 0:
         print("Session log exists but records no session starts.")
+        fire_report(os.path.join(root, ".claude", ".enforcement-log"))
         return 0
 
     sub = sum(1 for s in starts if s[1] == "subdir")
@@ -76,6 +78,8 @@ def main():
         print("Any 'done' claim from a session without a verify run was a guess.")
         print()
 
+    fire_report(os.path.join(root, ".claude", ".enforcement-log"))
+
     print("DECIDE NOW, NOT LATER")
     if n >= 5:
         print("  Every session in this log ran the SessionStart hook (it wrote the")
@@ -89,6 +93,37 @@ def main():
         print(f"  Only {n} sessions recorded. Thin, but do not wait passively —")
         print("  run /project-audit now and use the static evidence instead.")
     return 0
+
+
+def fire_report(path=".claude/.enforcement-log"):
+    """A10 — rules by fire count, from the deny log the hooks write.
+
+    Constantly-firing rule → usually a design problem the guard papers over.
+    Never-firing rule → prune candidate (after enough sessions to mean it).
+    UNREGISTERED → the guard enforces something the registry holds no row for.
+    """
+    import os
+    from collections import Counter
+    if not os.path.exists(path):
+        print("ENFORCEMENT FIRES    no log yet — zero denies recorded (or hooks predate 1.17.0)")
+        print()
+        return
+    counts, malformed, first, last = Counter(), 0, None, None
+    for line in open(path, encoding="utf-8", errors="replace"):
+        parts = line.rstrip("\n").split("\t")
+        if len(parts) != 3 or not parts[0]:
+            malformed += 1
+            continue
+        counts[parts[1]] += 1
+        first = first or parts[0]
+        last = parts[0]
+    print(f"ENFORCEMENT FIRES    {sum(counts.values())} denies, {first} .. {last}")
+    for rule, n in counts.most_common():
+        note = "  <- registry holds no row for this deny (honesty gap)" if rule == "UNREGISTERED" else ""
+        print(f"  {rule:<14} {n}{note}")
+    if malformed:
+        print(f"  (malformed lines skipped: {malformed} — the log is telemetry, not a ledger, but say so)")
+    print()
 
 
 if __name__ == "__main__":
