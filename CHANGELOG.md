@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.16.1 — A4/A5 acceptance proven
+The kill/re-run protocol ran against v1.16.0 in a scratch repo: killed after Round 2 → resumed at Round 3 with nothing re-asked; killed mid-scaffold after 6 files → resumed skipping exactly those (byte-identical, SHA-verified), completed 19 files with no duplication; commit-step re-entry skipped via `phases`; state deleted only after the Step-4 subset passed; `--plan` wrote zero files and its predeclared file-list matched `git ls-files` exactly (P-04). Also the A2 manifest's first scaffold exercise (22 rules validated). Verbatim evidence: `docs/acceptance/2026-08-11-a4-a5-acceptance.md`, honest bounds included (single-agent run; fresh-session gold proof still recommended; rich-scaffold verify is O4).
+
+
 ## 1.16.0 — the C-06 · D-06 · S-07 gate trio
 Three PROSE rows promoted to enforced gates, per their own promote-when triggers:
 
