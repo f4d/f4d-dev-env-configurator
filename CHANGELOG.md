@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.21.0 — O4 tier 1: mechanical conformance
+`tests/conformance_test.sh` — 29 checks proving the pieces a scaffold is assembled from actually compose: every GitHub workflow template parses, the compose/verify templates **render** to valid YAML with tokens filled (the suite's first run caught exactly the right thing — raw `{{TOKEN}}` files aren't YAML, rendered ones must be), every hook and the fallback guard are executable, every registry section resolves as a module manifest against the always-on core, and every `templates/` path the init spec references exists (the missing-piece class the GHL-MCP audit hit). Tier 2 — behavioral, agent-run — is specified in `docs/acceptance/O4-protocol.md` and owns the debts bounded out of the A4/A5 acceptance: full-spec plan/execute parity, verify-green on the empty scaffold per module combo, and failing-verify-keeps-state. Cadence: one rich combo per minor release, all five before v2.0.
+
+
 ## 1.20.0 — A11: the guard floor that survives plugin absence
 Every hook path is `${CLAUDE_PLUGIN_ROOT}/...` — uninstall the plugin and every guard silently vanishes while the repo looks fine (absence reads as permission; the jq bug one level up). Now `/project-init` writes `.claude/hooks/guard-local.sh` into the repo itself: self-contained (own minimal parser, no shared libs, deliberately no telemetry — zero dependencies that could fail with the plugin), blocking secret material (C-01), force-push (C-02), and unparseable input (G-03, fail-loud). Double-wired alongside the plugin guard — safe because A6 proved any exit-2 blocks in any order. `/project-audit` now asserts the fallback is present/executable/wired and that the installed plugin version matches the recorded framework state. Four red-green harness cases.
 
