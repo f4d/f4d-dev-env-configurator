@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.22.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.22.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -23,9 +23,9 @@
 | Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | 121 | hooks (40) + render_registry (11) + gate_trio (37) + statelessness (4) + conformance (29), all passing |
+| Tests | 123 | hooks (40) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (29), all passing |
 
-**Rule status:** 45 mechanically enforced · 7 tracked debt with triggers · 13 judgment · rest scaffold/agent.
+**Rule status:** 44 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
 
 ---
 

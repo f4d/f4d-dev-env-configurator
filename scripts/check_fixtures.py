@@ -128,6 +128,26 @@ def g05_case_diff(dirs):
     body = os.environ.get("PR_BODY", "")
     waiver = __import__("re").search(r"fixture-case-removed-ok:\s*(\S.*)", body)
     problems = []
+    # Baseline fixtures DELETED from the worktree are the strongest case
+    # removal of all — enumerate the base's fixture paths, not just survivors.
+    re_mod = __import__("re")
+    try:
+        base_files = subprocess.run(["git", "ls-tree", "-r", "--name-only", base],
+                                    capture_output=True, text=True, check=True).stdout.splitlines()
+    except subprocess.CalledProcessError:
+        base_files = []
+    fixture_seg = re_mod.compile(r"(^|/)(fixtures|__fixtures__|testdata|cassettes)(/|$)")
+    for bf in base_files:
+        if not bf.endswith(".json") or not fixture_seg.search(bf):
+            continue
+        if not os.path.exists(bf):
+            if waiver:
+                print(f"check_fixtures: {bf} deleted, ACCEPTED: {waiver.group(1).strip()[:100]} (G-05)")
+            else:
+                problems.append(
+                    f"{bf}: fixture file deleted outright (G-05) — every case it expressed is gone. "
+                    "State `fixture-case-removed-ok: <reason>` in the PR body if this is genuinely right."
+                )
     for fdir in dirs:
         for fn in os.listdir(fdir):
             if not fn.endswith(".json"):

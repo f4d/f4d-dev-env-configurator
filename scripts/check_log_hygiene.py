@@ -24,8 +24,10 @@ SKIP = (".git", "node_modules", ".venv", "dist", "build", ".next", "fixtures", "
 EXT = (".py", ".ts", ".tsx", ".js", ".jsx")
 TESTY = re.compile(r"(^|[._-])test|spec\.|^tests?$")
 CALL = re.compile(
-    r"(?:console\.(?:log|info|warn|error|debug)|logger?\.\w+|logging\.\w+|print)\s*\(([^\n]{0,200})",
+    r"(?:console\.(?:log|info|warn|error|debug)|logger?\.\w+|logging\.\w+|print)\s*\(",
 )
+ARG_WINDOW = 300  # chars after the opening paren, newline-crossing — a
+                  # formatter that puts req.body on the next line must not hide it
 SENSITIVE = re.compile(
     r"\b(?:payload|req\.body|request\.body|res\.body|response\.body|password|passwd|secret|token|authorization|api_key|apikey|private_key|headers|cookie|ssn|credit_card)\b",
     re.I,
@@ -46,11 +48,15 @@ def main():
                 continue
             rel = os.path.relpath(path, base)
             scanned += 1
-            lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
-            for i, line in enumerate(lines):
-                m = CALL.search(line)
-                if not m or not SENSITIVE.search(m.group(1)):
+            content = open(path, encoding="utf-8", errors="replace").read()
+            lines = content.splitlines()
+            for m in CALL.finditer(content):
+                window = content[m.end():m.end() + ARG_WINDOW]
+                window = window.split("\n\n", 1)[0]  # stop at a blank line
+                if not SENSITIVE.search(window):
                     continue
+                i = content.count("\n", 0, m.start())
+                line = lines[i] if i < len(lines) else ""
                 ann = OK.search(line) or (OK.search(lines[i - 1]) if i else None)
                 if ann:
                     if not (ann.group(1) or "").strip():
