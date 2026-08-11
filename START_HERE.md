@@ -18,8 +18,8 @@ bash tests/hooks_test.sh                      # expect: pass=24 fail=0
 python3 scripts/check_statelessness.py        # expect: clean
 python3 scripts/check_guess_lists.py          # expect: clean
 
-# 3. Push it somewhere durable
-gh repo create f4d/f4d-kit --private --source=. --push
+# 3. Confirm you're on the published remote
+git remote -v   # expect: github.com/f4d/f4d-dev-env-configurator
 ```
 
 ## Where things are

@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-08 · **Version shipped:** 1.10.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-10 · **Version shipped:** 1.10.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -35,7 +35,7 @@
 |---|---|---|
 | **B-01** | Notion writes rejected | Three attempts to create `Engineering HQ — All Companies` + Work DB returned "No approval received" — nothing was created, nothing archived. Check the Notion connector has **write** access, or look for a pending approval dialog. Once cleared: create the HQ page, the Work DB per `templates/notion/WORK_DB_SCHEMA.md` (incl. `Company` + `Hub Mode`), all 9 views, seed `Company` options (Rezon8, F4 Digital, Brand Torus, RoofAdvisor, Personal), and archive the 4 legacy Trello boards. |
 | **B-02** | Brand Torus repo path | Container cannot see `/Users/ian/GitHub/`. Need: `ls -d ~/GitHub/*brand* ~/GitHub/*torus*` output. Then `/project-audit` must run from inside that dir in Claude Code on desktop. |
-| **B-03** | Push the kit | `cd f4d-kit && gh repo create f4d/f4d-kit --private --source=. --push` |
+| ~~B-03~~ | ~~Push the kit~~ | ✅ Done 2026-08-10 — published as `f4d/f4d-dev-env-configurator` (private). Docs updated to reference the real slug; the plugin/product name stays `f4d-kit`. |
 | **B-04** | Secrets | Org-level: `CLAUDE_CODE_OAUTH_TOKEN` (via `claude setup-token`), `NOTION_TOKEN`. Org variable: `NOTION_WORK_DB` (**data source** id, not database id). |
 | **B-05** | External Agents waitlist | Notion alpha. Free. Collapses two systems into one if it ships. |
 
@@ -219,7 +219,6 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 ```
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
-         B-03 push the kit       (blocked on Ian)
 
 NEXT     A4   resumable interview          ← start here on code
          A2   registry as manifest
