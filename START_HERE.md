@@ -37,10 +37,11 @@ git remote -v   # expect: github.com/f4d/f4d-dev-env-configurator
 
 ## Resuming work
 
-`docs/BACKLOG.md` §6 has the priority order. Top unstarted code item is **A4 —
-resumable interview**. Every backlog item carries why it matters, numbered build
-steps, done-when criteria, and the files it touches, so it can be picked up
-without re-deriving anything.
+`docs/BACKLOG.md` §6 has the priority order. Top unstarted code item is **A2 —
+registry as manifest** (A4 shipped in 1.11.0; its live acceptance test is still
+owed). Every backlog item carries why it matters, numbered build steps, done-when
+criteria, and the files it touches, so it can be picked up without re-deriving
+anything.
 
 ## Using it on another project
 
