@@ -9,6 +9,25 @@ Read-only, with exactly one exception: the audit report document this skill
 exists to produce (see Output). Everything else — report, then ask before
 changing anything.
 
+## FRAMEWORK-absent mode
+
+Determine first whether the repo carries the kit at all (`.claude/.framework-state.json`,
+kit rules modules). When it does not — an unscaffolded or inherited repo — do not
+improvise which checks translate:
+
+- **Run as-is:** config presence, enforcement layer (against whatever instruction
+  files the repo has — a `CLAUDE.md`-shaped file that does not auto-load is the
+  headline finding, not a skipped check), verify integrity, rules-vs-reality
+  (judged against the repo's own stated rules), statelessness (if multi-instance),
+  and the code-level spot checks.
+- **Skipped by construction — declare each in *Not checked*:** framework
+  version/drift classification, registry honesty against the kit registry, and
+  the kit gate scripts the repo never wired. Absence of a baseline is a fact to
+  state, never a gap to silently skip past.
+- **Org checks** run if a profile exists at `~/.claude/f4d/orgs/`; if none exists,
+  say so and recommend `/org-profile` — company identity (GitHub org, domains,
+  agency vs own-product) is what these checks exist to verify.
+
 ## Checks
 
 **Org alignment**
@@ -126,5 +145,13 @@ document is the only file the audit writes.** Sections, in order:
    enough to hand to a fresh session.
 6. **Not checked** — what this audit could not evaluate and why. Silence reads as
    "checked and fine"; say what wasn't.
+7. **Adoption recommendation** — *required when FRAMEWORK is absent or partial.*
+   The specific slice of the kit this repo should adopt first (usually the
+   enforcement layer: load path, `SessionStart`, secrets guard, one canonical
+   guide), and — just as explicitly — what it should **not** adopt because a
+   mature local equivalent exists; local customizations survive, the framework
+   is never taken wholesale. Name the next step (`/project-init --plan` in
+   RETROFIT). The recommendation is advice with dangers attached, not a queued
+   action: merging the report adopts nothing.
 
 Rank everything by what will bite soonest. Then ask: *"Want me to fix these, or start with the top three?"* Never fix unasked — the report document is the deliverable; applying it is a separate decision.

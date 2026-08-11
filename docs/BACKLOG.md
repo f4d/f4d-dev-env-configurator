@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-10 · **Version shipped:** 1.13.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.14.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -110,6 +110,37 @@ acceptance test: a real `--plan` run must write zero files and match a real run.
 
 ---
 
+### A13 — ST-01 fires on import-time-populated registries · **low** · effort S
+
+**Why:** first live test (GHL-MCP, 2026-08-10) — `check_statelessness.py` flagged a
+module-level `Record` whose only mutations are module-top-level registration calls
+(`registerNativeTab` at import time). Static after load, identical on every
+instance: a false positive. The first thing a wrongly-firing gate teaches a mature
+repo is to disable it — the exact fate the gate exists to avoid.
+
+**Build:** either (a) teach the scanner to clear collections mutated only during
+module evaluation, or (b) document the `stateless-ok` protocol for the
+registration pattern in `statelessness.md` and have the finding message point at
+it. Red-then-green proof either way: the GHL-MCP pattern must pass, a
+request-time mutation must still fail.
+
+**Files:** `scripts/check_statelessness.py`, `templates/rules/statelessness.md`
+
+---
+
+### First live test — executed 2026-08-10, findings folded back
+
+Target: `roofadvisor/GHL-MCP` on a scratch clone; deliverable is their PR #1042
+(24 findings, 15 danger-annotated proposals; VERIFY green). Kit-side outcomes:
+ST-01 false positive → **A13**; audit skill assumed a scaffolded repo → **absent
+mode + adoption-recommendation shipped in 1.14.0**; `session_report.py`'s no-log
+fallback behaved to spec; the report-document contract (dedicated branch, never
+pushed unasked) held in practice. Six PR-review findings on the shipped text →
+fixed in **1.13.1**. Still owed from the test: the A4/A5 kill/re-run acceptance
+proof.
+
+---
+
 ### A6 — Hook precedence unspecified · **medium** · effort S
 
 **Why:** two `PreToolUse` hooks now match `Write` (`guard.sh`, `rule-zero.sh`).
@@ -213,6 +244,7 @@ NEXT     A2   registry as manifest         ← start here on code
          C-06 commitlint  ·  D-06 raw-SQL gate  ·  S-07 pure-fn lint   (all S, do together)
 
 SOON     A10  enforcement telemetry
+         A13  ST-01 import-time-registry false positive (from live test)
          A6   hook precedence
          A11  plugin-absence fallback
          O4   conformance suite

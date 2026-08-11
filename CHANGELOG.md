@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.14.0 — what the first live test taught the audit
+`/project-audit` ran for the first time against a real, unscaffolded repo (GHL-MCP, on a scratch clone → their PR #1042) and two structural gaps surfaced.
+
+**FRAMEWORK-absent mode.** The skill assumed a scaffolded repo; on an inherited or unscaffolded one the auditor had to improvise which checks translate. Now specified: which checks run as-is (enforcement layer judged against the repo's own instruction files, verify integrity, rules-vs-reality, spot checks), which are skipped **by construction** and must be declared in *Not checked* (version/drift, kit-registry honesty, kit gate scripts), and org checks recommend `/org-profile` when no profile exists.
+
+**Adoption recommendation** is now a required report section when FRAMEWORK is absent or partial: the specific slice to adopt first, what NOT to adopt because a mature local equivalent exists, and the next step (`--plan`). Advice with dangers attached — merging the report adopts nothing.
+
+**Backlog:** A13 opened for the ST-01 import-time-registry false positive found live; the test record and its foldbacks are in the backlog.
+
 ## 1.13.1 — review fixes from the first live test's PRs
 Six review findings on #2/#3/#4, all confirmed against the shipped text:
 
