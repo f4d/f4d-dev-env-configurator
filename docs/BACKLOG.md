@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.17.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.17.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -113,26 +113,18 @@ scaffolds' annotations.
 
 ---
 
-### A15 — session-context.sh: retire or re-justify · **medium** · effort S
+### A15 — session-context.sh: retire or re-justify · ✅ decided in 1.17.2 — re-scoped, kept
 
-**Why:** the hook's founding rationale is now twice-disproven. Current Claude
-Code auto-loads `CLAUDE.md` (upward walk) **and** unscoped `.claude/rules/*.md`
-(recursively, at launch) per the official memory docs — so on current CLIs the
-hook is not what puts rules in context. It currently ships as
-defense-in-depth for older CLIs and `--setting-sources` exclusions.
+**Evidence:** scratch repo, sentinel rule in `.claude/rules/`, no hook, no
+`settings.json`; headless `claude -p` on **2.1.220** returned the sentinel
+phrase exactly. Auto-load holds on the deployed CLI.
 
-**Build:**
-1. Empirical test on the CLI version actually deployed: scratch repo with a
-   sentinel rule in `.claude/rules/`, no hook — does `/context` show it loaded?
-2. If auto-load holds: either retire the hook (and its wiring in
-   `/project-init`) or re-scope it to what still needs loading (nothing? an
-   `AGENTS.md` import is the documented fix for that case, not a hook).
-3. Whichever way: session-log telemetry (`.claude/.session-log`) is written by
-   this hook — A10 and `session_report.py` depend on it, so retiring the
-   loading job must keep (or relocate) the logging job.
-
-**Files:** `hooks/session-context.sh`, `skills/project-init/SKILL.md`,
-`templates/process/ENFORCEMENT.md`, `scripts/session_report.py`
+**Decision:** re-scope, keep. Primary job: **session telemetry**
+(`.claude/.session-log` — the evidence layer session_report.py, /retro, and
+/promote-rule run on; retiring the hook retires the evidence). The rules-index
+injection stays as redundant defense-in-depth for older CLIs and
+`--setting-sources` exclusions, and is never to be cited as the reason rules
+load. All doctrine sites updated with the evidence.
 
 ---
 
@@ -243,7 +235,7 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     A15  session-context retire-or-rejustify   ← start here
+NEXT     A6   hook precedence   ← start here
 
 SOON              A13  ST-01 import-time-registry false positive (from live test)
          A6   hook precedence

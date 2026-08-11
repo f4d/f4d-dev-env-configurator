@@ -33,10 +33,13 @@ What current Claude Code auto-loads, per its memory documentation:
 What does **not** auto-load: `AGENTS.md`-style guides. The documented fix is a
 `CLAUDE.md` that imports it (`@AGENTS.md`) or a symlink — not a hook.
 
-**Where that leaves `hooks/session-context.sh`:** its original rationale
-(sessions don't see the rules) is obsolete on current CLI versions. It remains
-shipped as defense-in-depth for older CLIs and `--setting-sources` exclusions,
-pending the retire-or-rejustify decision in backlog **A15**. Do not cite it as
+**Where that leaves `hooks/session-context.sh`:** A15 decided 2026-08-11,
+with evidence — on Claude Code 2.1.220 a sentinel rule in `.claude/rules/`
+loaded headlessly with no hook and no `settings.json`. The hook is re-scoped:
+its **primary job is session telemetry** (`.claude/.session-log`, the evidence
+layer for `session_report.py`, `/retro`, `/promote-rule`); the rules-index
+injection is redundant defense-in-depth kept for older CLIs and
+`--setting-sources` exclusions. Do not cite it as
 the reason rules are in context, and verify actual loading with `/context`
 rather than inference. "The agent stopped reading the rules file" can still be
 a configuration defect — but establish it with evidence, not doctrine.
