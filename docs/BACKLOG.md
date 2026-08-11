@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.16.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.16.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -45,17 +45,14 @@
 
 Full reasoning in `docs/ARCHITECTURE_REVIEW.md`. Condensed to actionable form here.
 
-### A4 — Interview is not resumable · ✅ built in 1.11.0, acceptance test owed
+### A4 — Interview is not resumable · ✅ built 1.11.0, **acceptance proven 2026-08-11**
 
-Shipped 2026-08-10: Step 0 resume-or-discard (fail-loud on corrupt state),
-per-round persistence to `.claude/.init-state.json`, idempotent scaffold via
-`written_files`, delete-on-success only. Shape lives in `scaffold-spec.md`
-§ *Init state file*; ignored via `gitignore.tmpl`.
-
-**Still owed — the live proof:** kill `/project-init` after Round 2, re-run, it
-resumes at Round 3 without re-asking. Kill mid-scaffold, re-run, it completes
-without duplicating. Needs an interactive run in a scratch repo. Until it runs,
-this is implemented, not proven.
+Kill/re-run protocol executed against v1.16.0 in a scratch repo — both
+done-when criteria MET with SHA-verified no-duplication, plus the commit-step
+re-entry, delete-on-success-only, and P-04 plan/execute parity. Artifact with
+verbatim evidence: `docs/acceptance/2026-08-11-a4-a5-acceptance.md`. Honest
+bound recorded there: single-agent single-session run; a fresh-session
+interactive run remains the gold proof; rich-scaffold Step-4 verify is O4.
 
 ---
 
@@ -101,8 +98,9 @@ rule firing constantly is usually a **design** problem the guard is papering ove
 Shipped 2026-08-10: `--plan` runs the same decision path through Step 2, prints
 the full plan (files AND non-file side effects), writes nothing — state stays in
 memory; persisting it for a later resume is an explicit end-of-plan offer
-(1.13.1). RETROFIT defaults to `--plan` first. Live proof rides with the A4
-acceptance test: a real `--plan` run must write zero files and match a real run.
+(1.13.1). RETROFIT defaults to `--plan` first. **Proven 2026-08-11** with the
+A4 acceptance run: zero writes after `--plan`, and the predeclared plan
+file-list matched `git ls-files` exactly (P-04). Same artifact.
 
 ---
 
@@ -254,10 +252,9 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     A4   live acceptance test (kill/re-run in a scratch repo)   ← start here
+NEXT     A10  enforcement telemetry   ← start here
 
-SOON     A10  enforcement telemetry
-         A13  ST-01 import-time-registry false positive (from live test)
+SOON              A13  ST-01 import-time-registry false positive (from live test)
          A6   hook precedence
          A11  plugin-absence fallback
          O4   conformance suite
