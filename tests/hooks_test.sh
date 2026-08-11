@@ -90,6 +90,19 @@ if echo '{"tool_input":{"file_path":"/nonexistent/x.py"}}' | CLAUDE_FILE_PATHS="
   echo "  PASS  never blocks, even on a missing file"; pass=$((pass+1))
 else echo "  FAIL  format.sh must never block"; fail=$((fail+1)); fi
 
+echo "guard-local.sh (A11 fallback — must work with the plugin GONE)"
+GL="$(cd "$HOOKS/.." && pwd)/templates/scaffold/guard-local.sh"
+gl=$(mktemp -d); ( cd "$gl" && git init -q )
+echo '{"tool_input":{"file_path":"/x/.env"}}' | (cd "$gl" && bash "$GL") >/dev/null 2>&1; got=$?
+if [ "$got" -eq 2 ]; then echo "  PASS  fallback blocks .env"; pass=$((pass+1)); else echo "  FAIL  fallback blocks .env (got $got)"; fail=$((fail+1)); fi
+echo '{"tool_input":{"command":"git push --force origin main"}}' | (cd "$gl" && bash "$GL") >/dev/null 2>&1; got=$?
+if [ "$got" -eq 2 ]; then echo "  PASS  fallback blocks force-push"; pass=$((pass+1)); else echo "  FAIL  fallback blocks force-push (got $got)"; fail=$((fail+1)); fi
+echo '{"tool_input":{"command":"pnpm test"}}' | (cd "$gl" && bash "$GL") >/dev/null 2>&1; got=$?
+if [ "$got" -eq 0 ]; then echo "  PASS  fallback allows normal command"; pass=$((pass+1)); else echo "  FAIL  fallback allows normal (got $got)"; fail=$((fail+1)); fi
+echo 'not json at all' | (cd "$gl" && bash "$GL") >/dev/null 2>&1; got=$?
+if [ "$got" -eq 2 ]; then echo "  PASS  fallback FAILS LOUD on garbage"; pass=$((pass+1)); else echo "  FAIL  fallback fail-loud (got $got)"; fail=$((fail+1)); fi
+rm -rf "$gl"
+
 echo "enforcement telemetry (A10)"
 # 1. A deny writes one TSV line tagged with its rule ID.
 et=$(mktemp -d); ( cd "$et" && git init -q )

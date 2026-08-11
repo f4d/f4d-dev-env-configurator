@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.20.0 — A11: the guard floor that survives plugin absence
+Every hook path is `${CLAUDE_PLUGIN_ROOT}/...` — uninstall the plugin and every guard silently vanishes while the repo looks fine (absence reads as permission; the jq bug one level up). Now `/project-init` writes `.claude/hooks/guard-local.sh` into the repo itself: self-contained (own minimal parser, no shared libs, deliberately no telemetry — zero dependencies that could fail with the plugin), blocking secret material (C-01), force-push (C-02), and unparseable input (G-03, fail-loud). Double-wired alongside the plugin guard — safe because A6 proved any exit-2 blocks in any order. `/project-audit` now asserts the fallback is present/executable/wired and that the installed plugin version matches the recorded framework state. Four red-green harness cases.
+
+
 ## 1.19.0 — A6: hook precedence, proven then documented
 Three-run empirical protocol on CLI 2.1.220 — a validity control (allower only → write succeeds), then a blocker paired with an allower in both orders: **blocked both times**. Contract now in ENFORCEMENT.md: all matching hooks run; any exit-2 blocks; a passing hook cannot override; order affects only which message shows first. Plugin and project hook arrays merge per the settings docs — a project hook never disables a plugin hook. Design consequence stated: hooks must be independent, never order-reliant. Runnable protocol committed as the acceptance artifact.
 

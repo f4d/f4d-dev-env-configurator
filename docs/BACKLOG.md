@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.19.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-11 · **Version shipped:** 1.20.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -157,19 +157,14 @@ aggregation semantics empirically anchored.
 
 ---
 
-### A11 — Plugin absence silently removes all guards · **low** · effort S
+### A11 — Plugin absence silently removes all guards · ✅ built in 1.20.0
 
-**Why:** every hook path is `${CLAUDE_PLUGIN_ROOT}/...`. If the plugin is not
-installed, **every guard silently disappears and the project looks fine**. Same shape
-as the `jq` bug one level up: absence reads as permission.
-
-**Build:**
-1. `/project-init` writes a minimal fallback `.claude/hooks/guard-local.sh` into the
-   repo (secrets + force-push only) so key-safety survives plugin absence
-2. `/project-audit` asserts the plugin is installed and at the expected version
-
-**Files:** `skills/project-init/SKILL.md`, `skills/project-audit/SKILL.md`,
-new `templates/scaffold/guard-local.sh`
+`templates/scaffold/guard-local.sh`: self-contained (own parser, no shared
+libs, no telemetry by design — zero dependencies that could take it down too),
+covering C-01 secrets + C-02 force-push + G-03 fail-loud. `/project-init`
+copies it into the repo and double-wires it alongside the plugin guard (safe
+per A6). `/project-audit` asserts presence/executable/wired AND plugin version
+matches the recorded framework state. 4 harness cases red-green.
 
 ---
 
@@ -230,7 +225,7 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     A11  plugin-absence fallback   ← start here
+NEXT     O4   conformance suite   ← start here
 
 SOON              O4   conformance suite (now also owns: full-spec plan/execute parity + full-Step-4 delete discipline)
 
