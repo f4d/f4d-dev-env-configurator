@@ -5,7 +5,9 @@ description: Audit an existing repo against the f4d-kit framework and report wha
 
 # Project Audit
 
-Read-only. Report, then ask before changing anything.
+Read-only, with exactly one exception: the audit report document this skill
+exists to produce (see Output). Everything else — report, then ask before
+changing anything.
 
 ## Checks
 
@@ -107,7 +109,12 @@ document is the only file the audit writes.** Sections, in order:
 
 1. **Header** — repo, date, kit version audited against, framework presence, verify status.
 2. **Summary** — three sentences max: what will bite soonest and why.
-3. **Findings** — the four categories above, each entry with file:line evidence.
+3. **Findings** — the four categories above. Evidence per entry: `file:line`
+   where a line exists; for absence and external-state findings (a missing
+   `CLAUDE.md`, an uninstalled plugin, an unversioned service) cite the
+   observable that proves it — a directory listing, command output, or the
+   external system's state. Never omit a finding for lack of a line, and never
+   invent a location to satisfy the format.
 4. **Proposed changes** — one row per change: what | benefit | danger | effort (S/M/L),
    ranked by what bites soonest. The **danger** column is not optional and "none" is
    rarely true: name what adopting the change could break in *this* repo — a hook that

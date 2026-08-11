@@ -152,22 +152,31 @@ print the complete plan and **stop without writing anything**:
 - the modules included and skipped, with the interview answer that decided each
 - the gates, hooks, and agents that would be wired
 - the local-stack choice (single vs two-instance) and the verify command
+- **every non-file side effect execution would perform**: the scaffold commit,
+  `upgrade.py --apply` recording the framework baseline, the `SINGLE_INSTANCE`
+  repo variable (a **remote** change), and Step 4's stack start with its
+  migrations and seed. A plan that lists only files while execution also
+  commits, records, and mutates remote state is not at parity.
 
 This is registry rule **P-04 applied to the scaffolder itself**: the plan is
 produced by the same decision path as a real run, output only — never a separate
 description that can drift from what execute would do. Anything the plan cannot
 state exactly, it must say so rather than approximate.
 
-Plan mode still persists interview state (`.claude/.init-state.json`), so a
-later real run resumes from the confirmed plan without re-asking a single
-question. On a RETROFIT repo, run `--plan` first by default and show the plan
-before proposing to execute.
+**Plan mode writes nothing — including the state file.** The Step 1/Step 2
+persistence instructions do not apply in plan mode; interview state stays in
+memory. After printing the plan, offer once: *"Save these answers to
+`.claude/.init-state.json` so a real run resumes from this plan?"* — only that
+explicit yes writes the file. A dry run that silently leaves an untracked state
+file in the target repo has already violated its own contract. On a RETROFIT
+repo, run `--plan` first by default and show the plan before proposing to
+execute.
 
 ---
 
 ## Step 3 — Write the scaffold
 
-Read `references/scaffold-spec.md` for exact file contents and layout. After each file lands, append its path to `written_files` in `.claude/.init-state.json` — this is what makes an interrupted scaffold resumable. On resume, skip exactly the files recorded there; a file on disk but *not* recorded was interrupted mid-write — rewrite it. Write in this order:
+Read `references/scaffold-spec.md` for exact file contents and layout. Before the first write, record in `.claude/.init-state.json` which planned targets already exist (`preexisting`). After each file lands, append its path to `written_files`; after each non-file step completes (the commit, the upgrade baseline, the repo variable), record it in `phases`. Resume semantics — including how pre-existing targets are re-done safely and why the commit must be phase-tracked — live in the spec's *Init state file* section. Write in this order:
 
 1. `.gitignore`, toolchain pins (`.python-version`, `packageManager`)
 2. `CLAUDE.md` — assembled from `templates/scaffold/CLAUDE.md.tmpl`, **kept under 80 lines**

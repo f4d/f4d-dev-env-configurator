@@ -16,7 +16,9 @@ source for its shape; do not restate the fields elsewhere.
   "round": 2,
   "answers": { "company": "F4 Digital", "backend_language": "typescript" },
   "decided_modules": [],
-  "written_files": []
+  "preexisting": [],
+  "written_files": [],
+  "phases": {}
 }
 ```
 
@@ -24,13 +26,17 @@ source for its shape; do not restate the fields elsewhere.
 - `round` — the last **completed** interview round (0–3). Plan confirmation (Step 2) sets it to `4`.
 - `answers` — question-key → answer, accumulated across rounds. Keys are short slugs; the value is the user's settled answer, not the raw reply.
 - `decided_modules` — empty until Step 2 approval, then the confirmed module list.
-- `written_files` — paths this init run has written, appended after each write.
+- `preexisting` — captured **once, at plan confirmation**: every planned target path that already exists on disk. This is what lets a resume tell "was here before us" from "our write was interrupted"; without it the two are indistinguishable.
+- `written_files` — paths whose write **completed**, appended after each write.
+- `phases` — non-file steps that completed, e.g. `{"scaffold_commit": true, "baseline_recorded": true, "repo_variable_set": true}`. File writes are not the only resumable work.
 
 Resume rules:
 
 - Write state after a round completes, never mid-round.
-- Skip exactly the files in `written_files`. On disk but not recorded = interrupted mid-write → rewrite it; content is deterministic given `answers`.
-- In RETROFIT, `written_files` governs only files this run wrote — pre-existing files stay under the retrofit never-overwrite rules.
+- Skip exactly the files in `written_files`.
+- A planned file **not** in `written_files`: if it is in `preexisting`, redo the retrofit-safe operation for it — those operations must be idempotent by construction (append checks for its entries first; `.proposed` files are simply rewritten). If it is not in `preexisting`, rewrite it outright; content is deterministic given `answers`.
+- Pre-existing files always stay under the retrofit never-overwrite rules; `written_files` never authorizes replacing one.
+- Skip any phase recorded `true` in `phases`. The scaffold commit **must** be recorded — an interrupted run that committed and then resumed would otherwise fail on `nothing to commit`. Idempotent side effects (re-recording the baseline, re-setting a repo variable to the same value) may safely re-run if unrecorded.
 - Delete the file only after Step 4 verification passes. Interrupted ≠ failed: both keep the state.
 
 ## Target layout (NEW mode)

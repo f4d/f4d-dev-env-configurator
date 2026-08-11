@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-10 · **Version shipped:** 1.13.0 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-10 · **Version shipped:** 1.13.1 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -103,9 +103,9 @@ rule firing constantly is usually a **design** problem the guard is papering ove
 ### A5 — Scaffolder has no dry run · ✅ built in 1.12.0
 
 Shipped 2026-08-10: `--plan` runs the same decision path through Step 2, prints
-the full plan (file tree, modules with deciding answers, gates, stack, verify),
-writes nothing. Persists interview state so execute resumes from the confirmed
-plan. RETROFIT defaults to `--plan` first. Live proof rides with the A4
+the full plan (files AND non-file side effects), writes nothing — state stays in
+memory; persisting it for a later resume is an explicit end-of-plan offer
+(1.13.1). RETROFIT defaults to `--plan` first. Live proof rides with the A4
 acceptance test: a real `--plan` run must write zero files and match a real run.
 
 ---
