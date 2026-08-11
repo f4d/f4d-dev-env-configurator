@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.2 — A15 decided: session-context re-scoped, kept
+The empirical test the twice-corrected doctrine demanded: a sentinel rule in a scratch repo's `.claude/rules/`, no hook, no `settings.json` — headless Claude Code **2.1.220** replied with the sentinel phrase exactly. Rules auto-load on the deployed CLI; the hook's loading rationale is dead. Decision: **re-scope, keep** — the hook's primary job is session telemetry (`.claude/.session-log`, the evidence layer for `session_report.py`, `/retro`, `/promote-rule`; retiring the hook would retire the evidence), and the rules-index injection stays as redundant defense-in-depth for older CLIs and `--setting-sources` exclusions, never to be cited as the reason rules load. All doctrine sites carry the evidence.
+
+
 ## 1.17.1 — A13: the import-time-registry exception, as doctrine
 The live test's ST-01 false positive becomes a sanctioned, bounded exception: `statelessness.md` § *Import-time registries* documents why a module-level registry populated only at module top level is static-after-load (no cross-instance drift possible), the exact annotation (`stateless-ok import-time registration — <cite the call-site check>`), and the sharp boundary — any request-time registration makes it real ST-01, and since the scanner cannot see call-site timing across files, the annotation is a claim a reviewer verifies. The ST-01 finding message now points at the section. 4-case red-then-green harness added (`tests/statelessness_test.sh`).
 

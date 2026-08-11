@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# SessionStart hook — legacy defense-in-depth for the load path.
+# SessionStart hook. A15 DECIDED 2026-08-11 — re-scoped, kept:
 #
-# Doctrine corrected 2026-08-11 (twice): current Claude Code auto-loads
-# CLAUDE.md (upward walk from the session cwd) AND unscoped .claude/rules/*.md
-# (recursively, at launch) — per the official memory docs. On current CLI
-# versions this hook is NOT what puts rules in context. It remains shipped as
-# insurance for older CLIs and --setting-sources exclusions, pending the
-# retire-or-rejustify decision in backlog A15. AGENTS.md-style guides still
-# never auto-load; the documented fix there is an @AGENTS.md import in
-# CLAUDE.md, not this hook.
+#   PRIMARY JOB: session telemetry. This hook writes .claude/.session-log —
+#   the evidence session_report.py, /retro, and /promote-rule run on. Retiring
+#   it retires the evidence.
+#   SECONDARY: the rules-index injection is redundant defense-in-depth.
+#   Empirically proven redundant on Claude Code 2.1.220 (sentinel rule in
+#   .claude/rules/ loaded headlessly with NO hook and no settings.json) —
+#   kept only for older CLIs and --setting-sources exclusions.
+#
+# AGENTS.md-style guides still never auto-load; the documented fix there is an
+# @AGENTS.md import in CLAUDE.md, not this hook.
 #
 # This hook walks up to the repo root and injects the rules index into every
 # session regardless of where it started.
