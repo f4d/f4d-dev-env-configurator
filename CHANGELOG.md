@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.13.1 — review fixes from the first live test's PRs
+Six review findings on #2/#3/#4, all confirmed against the shipped text:
+
+- **Resume could not tell "pre-existing" from "interrupted mid-write"** — in RETROFIT both are absent from `written_files`, and the rules said both "rewrite it" and "never touch it". The state file now captures a `preexisting` inventory at plan confirmation; unrecorded planned targets redo their retrofit-safe (idempotent) operation when pre-existing, rewrite outright when not.
+- **The scaffold commit was not resumable** — interrupt after the commit, resume, and `git commit` fails on `nothing to commit`, blocking verification and cleanup. Non-file steps now record into a `phases` map; the commit must be recorded, idempotent side effects may re-run.
+- **Plan mode wrote the state file it claimed not to write** — a `--plan` on a RETROFIT repo left an untracked file in the target, contradicting "writes nothing". Plan mode now keeps state in memory and *offers* persistence at the end; only an explicit yes writes.
+- **The plan omitted non-file side effects** — the commit, the upgrade baseline, the **remote** `SINGLE_INSTANCE` variable, and Step 4's stack/migrations/seed never appeared in the "complete" plan. They are now required plan output; P-04 parity covers effects, not just files.
+- **"Read-only" contradicted the mandated report write** — the audit header now states its single exemption explicitly.
+- **`file:line` was required where no line can exist** — absence and external-state findings may now cite a listing, command output, or external-system state; never omit a finding for lack of a line, never invent one.
+
 ## 1.13.0 — audit writes its report as a document
 `/project-audit` now writes `docs/f4d-audit-<date>.md` into the audited repo (dedicated branch, never pushed unasked) — header, three-sentence summary, findings with file:line evidence, proposed changes ranked by what bites soonest with an explicit **danger** column (what adopting each change could break in this repo — a hook blocking a current workflow, a gate going red on existing code), a prioritized todo list handable to a fresh session, and a **Not checked** section, because silence reads as "checked and fine". The document is the only file the audit writes; the terminal summary stays. Requested for the first live retrofit test: audit a scratch clone, review the document, decide separately.
 
