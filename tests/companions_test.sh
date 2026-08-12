@@ -61,8 +61,8 @@ state = upgrade.load_state(".")
 upgrade.save_state(".", "1.22.2", state.get("files", {}), companions=state.get("companions"))
 PY
 )
-python3 -c "import json,sys; sys.exit(0 if json.load(open('$T/.claude/.framework-state.json')).get('companions',{}).get('superpowers') else 1)"
-check "upgrade preserves the companion declaration" 0 $?
+python3 -c "import json,sys; s=json.load(open('$T/.claude/.framework-state.json')); sys.exit(0 if s.get('companions',{}).get('superpowers') and s.get('version')=='1.22.2' else 1)"
+check "upgrade preserves companions and version after save_state" 0 $?
 
 rm -rf "$T"
 echo "pass=$pass fail=$fail"
