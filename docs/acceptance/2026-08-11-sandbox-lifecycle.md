@@ -111,3 +111,12 @@ kit test-cases      13   <- unchanged throughout; never contaminated
 4. **Bounded, and stated:** this measured one repo across one window with the
    kit held constant. It says nothing about precision on a *different* codebase,
    which is why target selection skews toward well-built repos.
+5. **One comparison caveat, surfaced by PR review:** audit-1 had been stripped
+   with `git clean -fdX` and audit-3 was a fresh clone that was never built, so
+   neither carried `.next`, `build/`, or `node_modules`. The comparison is
+   therefore sound — both sides saw the same (absent) input — but it does **not**
+   demonstrate that stripping is measurement-neutral in general. No before/strip
+   and after/strip counts were taken, and the exclusion lists are not uniform:
+   `check_fixtures` skips neither `build` nor `.next`, so it can count fixtures
+   that `git clean -fdX` later removes. `docs/SANDBOX.md` now requires measuring
+   before stripping rather than assuming it.

@@ -30,8 +30,32 @@ versions run against identical code. See `.sandbox/*/docs/f4d-audit-delta-*.md`.
 the client's own checkout and produces a report they receive.
 
 The distinction matters because the two have opposite defaults. A client audit
-writes one report and pushes it. A sandbox run writes nothing and **must not be
-able to push at all**. Do not let a convenience added here leak into that.
+writes one report and pushes it. A sandbox run **must not be able to push at
+all**. Do not let a convenience added here leak into that.
+
+### "Read-only" is true of scanners, not of `/project-audit`
+
+Running the check scripts directly writes nothing. **Running `/project-audit`
+does**: its contract requires a report at `docs/f4d-audit-<date>.md`, *"on a
+dedicated branch when the repo has git"* (`skills/project-audit/SKILL.md:144`).
+That is a commit and a branch — which moves `HEAD` off the pinned SHA.
+
+**Never run `/project-audit` against a frozen control.** A control that has been
+audited is no longer at the SHA the table claims, and nothing announces it. Run
+it against a working copy instead — clone a second time from the same SHA if you
+need both.
+
+If you do audit a sandbox copy, capture the report out before resetting:
+
+```bash
+cp docs/f4d-audit-*.md /somewhere/outside/the/sandbox/
+git checkout <pinned-sha>            # detach back to the recorded state
+git branch -D <the-audit-branch>
+git status --porcelain               # must be empty
+```
+
+The report belongs in the kit (`docs/acceptance/`) rather than in the clone —
+the clone is disposable and the report is the evidence.
 
 ---
 
@@ -159,9 +183,35 @@ required).
 
 ### What a stripped clone can and cannot do
 
-Every check in `/project-audit` reads source files, so all of them work on a
-stripped clone and return byte-identical results — the scanners skip
-`node_modules`, `dist`, and `.next` regardless.
+Every check reads source files, so all of them run on a stripped clone. Counts
+are **stable for most scanners but not guaranteed for all** — the exclusion lists
+are not uniform:
+
+| Scanner | Skips `dist` | Skips `build` | Skips `.next` |
+|---|---|---|---|
+| `check_statelessness`, `check_guess_lists` | yes | yes | yes — via the `startswith(".")` filter, not `SKIP` |
+| `check_catch_empty`, `check_log_hygiene`, `check_pure_imports`, `check_raw_sql` | yes | yes | **no** |
+| `check_fixtures` | yes | **no** | **no** |
+
+So `git clean -fdX` can remove input that `check_fixtures` was counting — a
+fixture directory under `build/` or `.next/` disappears, and the before/after
+counts differ for a reason that has nothing to do with the code.
+
+**Measure before stripping, and record both numbers.** It costs one command and
+it is the only thing that turns "stripping is measurement-neutral" from an
+assumption into a fact for the target in front of you:
+
+```bash
+cd "$KIT/.sandbox/<name>"
+for g in check_catch_empty check_log_hygiene check_statelessness check_fixtures; do
+  echo "$g before: $(python3 "$KIT/scripts/$g.py" 2>&1 | grep -cE '^[[:space:]]+.*:[0-9]+')"
+done
+git clean -fdX
+# ...re-run and compare. A difference is a finding about the scanner, not the repo.
+```
+
+A fresh clone that was never built has no `.next`, `build/`, or `node_modules` to
+begin with, so this only matters for a clone you inherited or built in.
 
 **One exception:** `VERIFY: PASS` requires actually running the target's build
 (`npm run verify`). That needs `npm install` first. Run it only when you intend
