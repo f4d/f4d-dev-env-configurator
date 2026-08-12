@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.22.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-12 · **Version shipped:** 1.22.3 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -24,7 +24,7 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **144** | hooks (43) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (32) + companions (18) |
+| Tests | **153** | hooks (43) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (38) + companions (18) |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 44 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -225,11 +225,27 @@ Whatever lands, prove it with a fired guard in a scaffolded repo — an
 
 ---
 
-### A19 — `/project-init` never ships the gates or the secrets preflight · **high** · effort S
+### A19 — `/project-init` never ships the gates or the secrets preflight · ✅ built in 1.22.3
 
-**Why:** scaffold step 10 names `verify.yml`, `claude.yml`,
-`claude-code-review.yml`, `notion-sync.yml`. Cross-checked against
-`templates/github/`:
+**Correction to the table below** (kept for the record, since half of it was
+wrong): `verify.yml` really had no source — step 10 folded it into the
+`templates/github/` list built for `claude.yml`/`claude-code-review.yml`/
+`notion-sync.yml`, but `templates/github/` has no `verify.yml`; the repo has
+`templates/scaffold/verify.yml.tmpl` instead. But `gates.yml` and
+`preflight.yml` were **not** unnamed — step 11 ("Process layer",
+`SKILL.md:204-205`) already named both as destinations before this fix. What
+they actually lacked was a source citation: every sibling line in that same
+step (e.g. `docs/LIFECYCLE.md` "copied from
+`${CLAUDE_PLUGIN_ROOT}/templates/process/`") names where it comes from; the
+`gates.yml`/`preflight.yml` lines named only the `.github/workflows/`
+destination. Grep confirmed neither `templates/github/gates.yml` nor
+`templates/github/preflight.yml` appeared anywhere in `SKILL.md` pre-fix — so
+the original claim "the registry gates never install" overstated it: the step
+existed, the source was merely unstated, which is a real but different bug
+(an agent following the step literally has no textual anchor for *where* to
+copy from, even though a human skimming the repo would probably guess right).
+
+Original table, for context:
 
 | Workflow | Template exists | Named in step 10 |
 |---|---|---|
@@ -237,17 +253,38 @@ Whatever lands, prove it with a fired guard in a scaffolded repo — an
 | `gates.yml` | yes | **no** — the registry gates never install |
 | `preflight.yml` | yes | **no** — the secrets scan never installs |
 
-So every scaffolded repo gets Claude review and Notion sync but **not** the two
-workflows that enforce the registry. That is a live §7.6 violation in the
-product, and the likeliest reason the GHL-MCP audits kept finding
-"enforceable-but-prose". Note `templates/scaffold/verify.yml.tmpl` does exist —
-step 10 may simply be naming the wrong path.
+**Built:** step 10's `verify.yml` now cites its real source —
+`${CLAUDE_PLUGIN_ROOT}/templates/scaffold/verify.yml.tmpl`, rendered the same
+way `CLAUDE.md.tmpl` is (`{{DB_NAME}}`/`{{SETUP_CMDS}}`/`{{VERIFY}}` filled) —
+and is unconditional, unlike the org-profile-gated `claude.yml`/
+`claude-code-review.yml`/`notion-sync.yml` trio. Each of those three also now
+cites its own `${CLAUDE_PLUGIN_ROOT}/templates/github/<file>` source instead
+of sharing one clause — the shared-list-plus-trailing-source-clause shape is
+exactly what let `verify.yml` get mis-scoped into it in the first place.
+Step 11's `gates.yml`/`preflight.yml` lines now cite
+`${CLAUDE_PLUGIN_ROOT}/templates/github/gates.yml` and `.../preflight.yml`
+explicitly, matching step 10's style. Left in step 11 rather than moved to
+step 10: they are unconditional/always-on ("Process layer — always, regardless
+of project size"), unlike step 10's org-profile-gated trio — moving them would
+have blurred a real distinction and duplicated the "always" framing step 11
+already states once.
 
-**Build:** correct step 10 to copy `gates.yml` and `preflight.yml`, resolve the
-`verify.yml` reference against `templates/scaffold/verify.yml.tmpl`, and add a
-conformance assertion that every workflow step 10 names actually exists.
+`tests/conformance_test.sh` gained a 6-check section
+("SKILL.md names a real, correctly-scoped source for every
+`.github/workflows/` output") proving `SKILL.md` cites a real, existing,
+correct source path verbatim for `verify.yml`, `claude.yml`,
+`claude-code-review.yml`, `notion-sync.yml`, `gates.yml`, and `preflight.yml`
+— not merely that the source file exists in isolation, which the pre-existing
+"spec-mandated artifacts" check already did and which is exactly why it never
+caught this. Red-then-green, `bash tests/conformance_test.sh`: reverting only
+the `SKILL.md` fix reproduces all 6 new checks failing against the unmodified
+text (`pass=32 fail=6`); restoring the fix turns all 6 green (`pass=38
+fail=0`). Full suite via `bash scripts/verify.sh`: 153/153 assertions,
+`VERIFY PASSED`. Registry checked: `gates.yml`'s P-01/D-01/I-01/M-01 rows
+needed no change — this fix makes them ship reliably, it doesn't change what
+they enforce.
 
-**Files:** `skills/project-init/SKILL.md:195-197`, `tests/conformance_test.sh`
+**Files:** `skills/project-init/SKILL.md` (steps 10 and 11), `tests/conformance_test.sh`
 
 ---
 
@@ -440,7 +477,6 @@ travel with the plugin or with the project.
 
 ```
 NOW      A18  scaffolded repos have a DEAD enforcement layer   <- CRITICAL, blocks O7
-         A19  /project-init never ships gates.yml/preflight.yml
 
          B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
