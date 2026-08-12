@@ -62,6 +62,9 @@ jobs:
         env:
           BASE_REF: origin/${{ github.base_ref }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          # Read via env, never interpolated into the script body — a ${{ }}
+          # expression spliced into bash is a script-injection seam.
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
         run: |
           fail=0
           run() {
@@ -69,10 +72,30 @@ jobs:
             python "scripts/$1" || fail=1
             echo "::endgroup::"
           }
+          # A skip must be louder than a pass, or it becomes a silent hole.
+          skip() {
+            echo "::notice title=Gate skipped::$1 ($2) — $3"
+            echo "SKIPPED $1 ($2) — $3"
+          }
           run check_commits.py         # C-06  <- needs BASE_REF; never ran here before
           run check_test_count.py      # C-08  <- needs BASE_REF; never ran here before
           run check_fixtures.py        # I-02 I-03 G-05
-          run check_rollback.py        # O-02 O-03 D-05
+          # check_rollback reads the PR body for a rollback step (the
+          # PR.template.md convention). A bot's body is a generated changelog and
+          # never carries one, so every Dependabot PR failed this gate on the day
+          # it was wired — and by A8 a gate that fires wrongly gets disabled,
+          # taking O-02/O-03/D-05 with it for humans too. The rule this gate
+          # exists to enforce is "a human thought about the rollback"; there is no
+          # human to make think on a bot PR, and a dependency bump's rollback is
+          # genuinely `revert`. Skipped loudly rather than relaxed, so the gap is
+          # visible in the log and in the run summary. A bot PR that touches a
+          # migration would still slip through — bots do not author migrations
+          # here, and if that ever changes this condition is the thing to revisit.
+          if [ "$PR_AUTHOR_TYPE" = "Bot" ]; then
+            skip check_rollback.py "O-02 O-03 D-05" "PR authored by a bot; no PR body to carry a rollback step"
+          else
+            run check_rollback.py      # O-02 O-03 D-05
+          fi
           run check_contract_pin.py    # K-02 K-03
           run check_guess_lists.py     # S-05
           run check_statelessness.py   # ST-01..ST-07
