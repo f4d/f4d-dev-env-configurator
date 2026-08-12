@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: { python-version: '3.12' }
       - name: Install the conformance harness's one dependency
         # conformance_test.sh preflights `import yaml` and fails loud without it.
@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: { python-version: '3.12' }
       # A7: one checkout, one python setup, all checks. Each names the rule IDs
       # it enforces so a failure is traceable to REGISTRY.md.
