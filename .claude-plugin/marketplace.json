@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "f4d",
+  "description": "F4 Digital's internal Claude Code plugins.",
+  "owner": {
+    "name": "Ian Lowell"
+  },
+  "plugins": [
+    {
+      "name": "f4d-kit",
+      "source": "./",
+      "description": "Reusable baseline development and code product management framework: lifecycle process, interview-driven scaffolding, composable rules modules, safety hooks, and audit agents for API-based, DB-backed web apps with multi-source data integrations.",
+      "author": {
+        "name": "Ian Lowell"
+      },
+      "category": "workflow"
+    }
+  ]
+}

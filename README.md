@@ -61,20 +61,37 @@ Nothing skips a stage; small work just moves through them fast. Full detail in `
 
 ## Install
 
-The kit lives at **`f4d/f4d-dev-env-configurator`** (private). Get a working copy:
+The kit lives at **`f4d/f4d-dev-env-configurator`** (private). Clone it, register it
+as a marketplace, install the plugin:
 
 ```bash
 gh repo clone f4d/f4d-dev-env-configurator
+claude plugin marketplace add ./f4d-dev-env-configurator
+claude plugin install f4d-kit@f4d
 ```
 
-Then in any project repo:
+Confirm it took, and see what it costs you on every turn:
 
 ```bash
-cd <project>
-claude
+claude plugin list
+claude plugin details f4d-kit
 ```
 
-`/plugin` → add marketplace → point at `f4d/f4d-dev-env-configurator` → install.
+Then, in any project repo, `/repo-builder` (new) or `/project-audit` (existing).
+
+Two things worth knowing:
+
+- **The trailing slash matters.** `claude plugin marketplace add .` is rejected as an
+  invalid source format; the path form needs `./` or an absolute path.
+- **`Hooks (0)` in `plugin details` is correct, not a defect.** The kit's hooks are
+  wired per-project — `/project-init` writes `.claude/settings.json` in the target
+  pointing at `${CLAUDE_PLUGIN_ROOT}/hooks/...`, so they arm for scaffolded repos
+  rather than globally for every session.
+
+These commands are exercised by `tests/conformance_test.sh`, which fails if
+`.claude-plugin/marketplace.json` stops parsing or stops naming a real plugin
+directory. Before that manifest existed, every documented install path failed with
+`Marketplace file not found` — the instructions had never been run.
 
 ---
 

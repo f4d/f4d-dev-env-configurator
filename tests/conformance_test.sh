@@ -20,6 +20,54 @@ if ! python3 -c "import yaml" 2>/dev/null; then
   exit 1
 fi
 
+echo "the plugin is installable as documented"
+# Every documented install path failed with "Marketplace file not found" until
+# this manifest existed — README and START_HERE described a flow nobody had run.
+# These assertions are what stop that from silently recurring.
+MKT="$KIT/.claude-plugin/marketplace.json"
+if [ -f "$MKT" ]; then
+  ok "marketplace.json exists (without it, 'claude plugin marketplace add' cannot work)"
+  if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$MKT" 2>/dev/null; then
+    ok "marketplace.json parses"
+    # A manifest that parses but points nowhere is the same shape as a registry
+    # row claiming enforcement that is not wired: valid, and useless.
+    python3 - "$KIT" "$MKT" <<'PY'
+import json, os, sys
+kit, path = sys.argv[1], sys.argv[2]
+m = json.load(open(path))
+plugins = m.get("plugins") or []
+problems = []
+if not m.get("name"):
+    problems.append("marketplace has no name")
+if not plugins:
+    problems.append("marketplace declares no plugins")
+for p in plugins:
+    src = p.get("source")
+    if not isinstance(src, str):
+        problems.append(f"{p.get('name')}: non-path source {src!r} not checked here")
+        continue
+    manifest = os.path.join(kit, src, ".claude-plugin", "plugin.json")
+    if not os.path.exists(manifest):
+        problems.append(f"{p.get('name')}: source {src!r} has no .claude-plugin/plugin.json")
+        continue
+    declared = json.load(open(manifest)).get("name")
+    if declared != p.get("name"):
+        problems.append(f"marketplace calls it {p.get('name')!r}, plugin.json calls it {declared!r}")
+for problem in problems:
+    print(f"  FAIL  {problem}")
+sys.exit(1 if problems else 0)
+PY
+    if [ $? -eq 0 ]; then
+      ok "every marketplace plugin resolves to a real plugin.json with a matching name"
+    else
+      fail=$((fail+1))
+    fi
+  else bad "marketplace.json does not parse as JSON"; fi
+else
+  bad "no .claude-plugin/marketplace.json — the documented install path cannot work"
+fi
+
+echo
 echo "workflows parse"
 for f in "$KIT"/templates/github/*.yml; do
   if python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$f" 2>/dev/null; then
