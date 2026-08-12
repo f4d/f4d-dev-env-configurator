@@ -1,0 +1,20 @@
+version: 2
+# Only the github-actions ecosystem: this repo has no package.json,
+# requirements.txt, or any other dependency manifest — it is bash and Python
+# standard library. The three pinned actions ARE a real dependency surface
+# though, and a pinned action drifts silently: actions/checkout@v4 keeps
+# resolving long after v5 fixes something.
+#
+# Deliberately not enabled here: CodeQL and dependency-review. Both need
+# GitHub Advanced Security on a private repo, and a workflow that silently
+# does not run is worse than one that was never added — absence reads as
+# permission. Revisit if this repo goes public or GHAS is purchased.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      # C-06: the commit gate judges Dependabot's subjects too.
+      prefix: chore
