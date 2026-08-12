@@ -51,6 +51,7 @@ promote-when trigger. `JUDGMENT` is a finished state.
 | G-03 | A guard that cannot evaluate its input must block, not allow | TEST | **TEST** | done |
 | G-04 | Unguardable residuals are named explicitly | JUDGMENT | PROSE + DoD | — |
 | G-05 | Improving a fixture must not delete a case it expressed | TEST | **GATE** (`check_fixtures` case-diff) | done |
+| G-06 | A rule delegated to a companion plugin is only enforced while that plugin is installed | TEST | **TEST** (`tests/companions_test.sh`) | done |
 
 ## Silent degradation
 
