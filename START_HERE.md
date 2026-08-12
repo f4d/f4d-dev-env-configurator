@@ -14,11 +14,12 @@ bash bootstrap.sh
 git log --oneline
 
 # 2. Confirm everything still passes
-bash tests/hooks_test.sh                      # expect: pass=40 fail=0
+bash tests/hooks_test.sh                      # expect: pass=56 fail=0
 bash tests/render_registry_test.sh            # expect: pass=11 fail=0
 bash tests/gate_trio_test.sh                  # expect: pass=39 fail=0
 bash tests/statelessness_test.sh              # expect: pass=4 fail=0
-bash tests/conformance_test.sh                # expect: pass=29 fail=0
+bash tests/conformance_test.sh                # expect: pass=42 fail=0
+bash tests/companions_test.sh                 # expect: pass=18 fail=0
 python3 scripts/check_statelessness.py        # expect: clean
 python3 scripts/check_guess_lists.py          # expect: clean
 
@@ -58,8 +59,10 @@ claude
 ```
 
 `claude plugin details f4d-kit` prints the component inventory and the per-turn
-token cost. `Hooks (0)` there is correct: hooks arm per-project via the
-`.claude/settings.json` that `/project-init` writes, not globally.
+token cost, including the hooks — they are declared once, globally, in
+`hooks/hooks.json` (A18), and each one gates itself on a target repo's
+`.claude/.framework-state.json` before doing anything. `/project-init` writes
+only `guard-local.sh` into a scaffolded repo's own `.claude/settings.json`.
 
 ## Non-negotiables carried forward
 

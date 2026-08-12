@@ -26,6 +26,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import repo_root  # noqa: E402
 
 STATE = ".claude/.framework-state.json"
+# A18 — this file now does double duty. It has always been the file-sync
+# baseline below; since hooks/hooks.json shipped, its mere PRESENCE is also
+# what hook_opted_in() (hooks/_parse.sh) checks to decide whether this repo's
+# plugin-declared hooks (guard.sh, rule-zero.sh, done-check.sh, format.sh,
+# verify-record.sh, session-context.sh) do anything at all.
+#
+# No migration or backfill was needed for that: every repo /project-init has
+# ever taken through step 7 (companions) or step 11 (this module's --apply)
+# already has this file, on every version of the kit, including every one
+# scaffolded before A18 was fixed. The moment such a repo's plugin installation
+# updates past the version that ships hooks/hooks.json, its hooks start firing
+# for real — with ZERO changes required in the target repo itself. Presence
+# alone is deliberately the whole opt-in signal; hook_opted_in() never parses
+# this file's contents (see its own comment for why a malformed-but-present
+# file must still count as opted in), so nothing here needs a new field for
+# A18 and nothing below needs to change to keep writing it correctly.
 
 
 def digest(path):

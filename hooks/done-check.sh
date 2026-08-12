@@ -7,6 +7,8 @@
 # source file would not count as a change and the hook would pass silently.
 # That is the exact failure class this framework exists to catch.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/_parse.sh"
+hook_opted_in || exit 0
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 
 # Every added/modified/untracked path, excluding docs and config.

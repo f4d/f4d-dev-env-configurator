@@ -95,6 +95,91 @@ for f in "$KIT"/hooks/*.sh "$KIT"/templates/scaffold/guard-local.sh; do
   [ -x "$f" ] && ok "$(basename "$f") +x" || bad "$(basename "$f") not executable"
 done
 
+echo "hooks/hooks.json (A18 — the plugin-declared manifest) is well-formed and complete"
+HJ="$KIT/hooks/hooks.json"
+if [ -f "$HJ" ]; then
+  ok "hooks/hooks.json exists"
+  if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$HJ" 2>/dev/null; then
+    ok "hooks/hooks.json parses"
+    # Every command references a real, executable hooks/*.sh file — a typo'd
+    # or stale path here is invisible until a live session hits it, which is
+    # exactly the class of gap this file exists to catch mechanically instead.
+    hj_result=$(python3 - "$KIT" "$HJ" <<'PY'
+import json, os, re, sys
+kit, path = sys.argv[1], sys.argv[2]
+data = json.load(open(path))
+problems = []
+seen = set()
+for event, entries in (data.get("hooks") or {}).items():
+    for entry in entries or []:
+        for h in entry.get("hooks") or []:
+            cmd = h.get("command", "")
+            m = re.search(r'\$\{CLAUDE_PLUGIN_ROOT\}/(hooks/[A-Za-z0-9_.-]+\.sh)', cmd)
+            if not m:
+                problems.append(f"{event}: command does not reference \\${{CLAUDE_PLUGIN_ROOT}}/hooks/*.sh: {cmd!r}")
+                continue
+            rel = m.group(1)
+            seen.add(os.path.basename(rel))
+            full = os.path.join(kit, rel)
+            if not os.path.isfile(full):
+                problems.append(f"{event}: {rel} does not exist")
+            elif not os.access(full, os.X_OK):
+                problems.append(f"{event}: {rel} exists but is not executable")
+for p in problems:
+    print(f"PROBLEM\t{p}")
+print("SEEN\t" + ",".join(sorted(seen)))
+PY
+)
+    hj_problems=$(printf '%s\n' "$hj_result" | grep '^PROBLEM' | sed 's/^PROBLEM\t//')
+    hj_seen=$(printf '%s\n' "$hj_result" | grep '^SEEN' | sed 's/^SEEN\t//')
+    if [ -z "$hj_problems" ]; then
+      ok "every hooks.json command resolves to a real, executable hooks/*.sh file"
+    else
+      printf '%s\n' "$hj_problems" | while IFS= read -r p; do bad "$p"; done
+    fi
+
+    # Drift check: hooks.json (global, plugin-declared, A18) and this repo's own
+    # .claude/settings.json (project-local, repo-relative — a deliberately
+    # different case, see its _comment) should still name the SAME set of hook
+    # scripts. A hook added to one and not the other is exactly the kind of gap
+    # that looks fine until the missing side is the one that mattered.
+    sj_seen=$(python3 -c "
+import json
+d = json.load(open('$KIT/.claude/settings.json'))
+names = set()
+for entries in (d.get('hooks') or {}).values():
+    for entry in entries:
+        for h in entry.get('hooks') or []:
+            names.add(h['command'].rsplit('/', 1)[-1])
+print(','.join(sorted(names)))
+")
+    if [ "$hj_seen" = "$sj_seen" ]; then
+      ok "hooks.json and .claude/settings.json declare the same hook scripts ($hj_seen)"
+    else
+      bad "hooks.json ($hj_seen) and .claude/settings.json ($sj_seen) declare different hook scripts"
+    fi
+  else
+    bad "hooks/hooks.json does not parse as JSON"
+  fi
+else
+  bad "no hooks/hooks.json — A18's plugin-declared hooks cannot resolve \${CLAUDE_PLUGIN_ROOT} without it"
+fi
+
+echo "every hooks.json-declared hook opts itself in (hook_opted_in, A18)"
+# hooks.json is global — it matches on every repo the user has open, so every
+# script it points at MUST gate on hook_opted_in before doing anything else.
+# _parse.sh itself is a sourced library, never invoked directly by the harness,
+# so it is exempt; every other hooks/*.sh file is a real entry point.
+for f in "$KIT"/hooks/*.sh; do
+  base="$(basename "$f")"
+  [ "$base" = "_parse.sh" ] && continue
+  if grep -q 'hook_opted_in' "$f"; then
+    ok "$base calls hook_opted_in"
+  else
+    bad "$base never calls hook_opted_in — it would run unconditionally on every repo the user has open"
+  fi
+done
+
 echo "every registry section resolves as a module manifest (with the always-on core)"
 T="$(mktemp -d)"
 section_failures=$(python3 - "$KIT" "$T" <<'PY'
