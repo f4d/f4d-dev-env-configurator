@@ -404,7 +404,9 @@ with:
 bash tests/companions_test.sh
 ```
 
-Expected: `pass=11 fail=0`
+Expected: `pass=10 fail=0` — nine assertions from Task 1 plus this one.
+
+**The assertion must fail before the fix, and you must see it do so.** Checking only that `companions.superpowers` survives is not enough: `writestate` seeds that key directly, and a pre-fix run raises `TypeError` at the call boundary so `save_state` never writes at all — leaving the seeded value in place and the check green. Assert `version == "1.22.2"` as well, which only a real write can produce. Prove it by reverting `save_state` to its pre-fix form, running the harness, and capturing the failure.
 
 - [ ] **Step 6: Commit**
 
