@@ -512,7 +512,9 @@ git commit -m "docs: G-06 — delegated rules are enforced only while the plugin
 In `skills/project-init/SKILL.md`, in the question table that currently ends with the `Q8` row, add:
 
 ```markdown
-| Always | **Which companion plugins should this repo expect?** Default: `superpowers` (MIT, multi-harness — ships `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`; process skills for TDD, planning, debugging, code review). Offered, never imposed — a declaration is a promise the audit will check. | `companions` |
+| Always | **Which companion plugins should this repo expect?** Default: `superpowers` (MIT, multi-harness — ships `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`; process skills for TDD, planning, debugging, code review). Offered, never imposed — a declaration is a promise the audit will check. | — (declaration in .framework-state.json, not a rules module) |
+
+> **Corrected after final review (I4).** This cell originally read `` `companions` ``, formatted exactly like `storage`/`money`, which are real files. There is no `templates/rules/companions.md` — G-06 lives in the always-on `## Guards`. That column is machine-consumed: scaffold step 4 copies "only the selected modules" and builds `manifest.json` from each selected module's registry section, so naming a module that does not exist sends the scaffolder looking for a missing file. Soften the round-3 preamble to "Most rows pull in a rules module" as well.
 ```
 
 - [ ] **Step 2: Show it in the plan preview**
@@ -528,7 +530,9 @@ COMPANIONS: superpowers >= 6.2.0   (declared; /project-audit will verify it stay
 In the scaffold output list, extend item 7 so the declaration is written with the state, not left implicit:
 
 ```markdown
-7. `.claude/agents/*.md` — only the selected agents. Also record the interview's companion answer in `.claude/.framework-state.json` as `"companions": {"<name>": {"min_version": "<v>", "why": "<one line>", "source": "<marketplace or URL>"}}`. Declare only what the project genuinely relies on: G-06 means an unmet declaration is a finding, so declaring a plugin nobody uses manufactures a permanent false alarm. Verify with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_companions.py"` before finishing.
+7. `.claude/agents/*.md` — only the selected agents. Also record the interview's companion answer in `.claude/.framework-state.json`. **Write the full initial object, not just the companions key** — at this point in the scaffold the file does not exist yet, and the framework baseline is not recorded until step 11: `{"version": null, "files": {}, "companions": {"<name>": {"min_version": "<v>", "why": "<one line>", "source": "<marketplace or URL>"}}}`. Declare only what the project genuinely relies on: G-06 means an unmet declaration is a finding, so declaring a plugin nobody uses manufactures a permanent false alarm. Verify with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_companions.py"` before finishing.
+
+> **Corrected after final review (C1 — Critical).** This step originally wrote only the `companions` key. Because step 11 records the baseline *later*, that left a state file with no `version`, and `upgrade.py`'s `load_state` returned it raw — so `main()` hit `KeyError: 'version'`, the baseline step aborted, and `classify()` then reported every rules file as `CONFLICT: no baseline recorded` forever. `/project-audit` runs `upgrade.py` too, so auditing such a repo crashed as well. Nothing surfaced it: `check_companions.py` was perfectly happy with the file, and no test exercises the scaffold path end to end. `load_state` is now hardened with `setdefault`, but do not rely on that alone — write the whole object here.
 ```
 
 - [ ] **Step 4: Verify the skill still conforms**
