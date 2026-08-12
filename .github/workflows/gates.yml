@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   harnesses:
-    name: "harnesses — 133 tests across 6 suites"
+    name: "harnesses — 141 tests across 6 suites"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -472,7 +472,9 @@ In **both** `.github/workflows/gates.yml` (the `harnesses` job) and `.github/wor
           for t in hooks render_registry gate_trio statelessness conformance companions; do
 ```
 
-Update the `gates.yml` job `name:` so its count stays truthful — it reads "123 tests across 5 suites"; with companions it is **133 tests across 6 suites** (40+11+39+4+29+10).
+Update the `gates.yml` job `name:` so its count stays truthful — it reads "123 tests across 5 suites"; with companions (10 tests at this point) it becomes **133 tests across 6 suites** (40+11+39+4+29+10).
+
+*(Superseded 2026-08-12: a post-implementation whole-branch review found five more findings — C1, I1, I2, I3, I4 — plus minors; fixing them (commit `83afbdf`) grew `companions` from 10 to 18 cases. The truthful count from that point on is **141 tests across 6 suites** (40+11+39+4+29+18), and `gates.yml`'s job `name:` was updated to match. See `.superpowers/sdd/2026-08-11-companion-plugins/final-fix-report.md` for the full account.)*
 
 Do **not** add `scripts/check_companions.py` to either file's python `gates` list. It would exit 0 with `SKIP` on every CI run (no plugin registry on a CI host), and a check that always skips reads as a check that always passes. Only the harness goes to CI — it drives the script with fixture registries via `$CLAUDE_PLUGIN_REGISTRY`, so it works anywhere.
 
