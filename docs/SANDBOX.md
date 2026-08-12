@@ -37,28 +37,42 @@ able to push at all**. Do not let a convenience added here leak into that.
 
 ## Why real repos, and which ones
 
-Synthetic fixtures prove a gate *runs*. Real repos prove the two properties that
-decide whether a gate survives contact with a project:
+**Bring in good codebases, because good codebases are where new conventions come
+from.** Developers develop; a repo that has been maintained well for years has
+already solved problems this kit has not named yet. Reading it for what it does
+*right* is the primary harvest — new rules, new test types, new gate ideas — and
+that is worth more than another confirmed defect.
 
-| Target quality | Proves | Failure it catches |
+Findings are the secondary harvest. Synthetic fixtures prove a gate *runs*; real
+repos prove the two properties that decide whether it survives contact:
+
+| Target | Primary value | Also proves |
 |---|---|---|
-| **Well-built** (most targets) | the gate stays **quiet** — precision | a gate that cries wolf on good code |
-| **Defect-rich** (keep at least one) | the gate **finds** — recall | a gate that misses the real thing |
+| **Well-built** (most targets) | practices worth systematizing | the gate stays **quiet** — precision |
+| **Defect-rich** (keep at least one) | known-missed cases to tune against | the gate **finds** — recall |
 
-**Skew the sandbox toward good codebases.** A gate that fires 147 times against
-excellent code is a broken gate, not a broken repo — and by the kit's own A8 law
-a noisy gate gets disabled, after which it protects nothing. Precision is the
-harder property and the one that decides adoption, so most targets brought in
-should be code you'd be happy to have written.
+Precision matters because a gate that fires 147 times against excellent code is a
+broken gate, not a broken repo — and by the kit's own A8 law a noisy gate gets
+disabled, after which it protects nothing. But precision is a check on the
+harvest, not the reason to prefer good targets.
 
-Good targets pay a second dividend the defect-rich ones cannot: **they are a
-source of conventions worth adopting**, not just findings to catch. A mature repo
-that solved a problem well is a rule candidate — and that discovery is worth more
-than another confirmed defect. Read them for what they do right, not only for
-what the gates flag.
-
-Keep at least one known-messy target anyway. Without it, recall is unmeasurable
+Keep at least one known-messy target anyway. Without it recall is unmeasurable
 and every gate looks perfect.
+
+### Where a harvested practice goes
+
+A practice found in a good repo is a candidate, not a rule. Route it the same way
+any other kit-ward discovery is routed:
+
+| The practice is | Route to |
+|---|---|
+| Worth every repo having, mechanizable | rules module + a gate, on **by default** |
+| Worth having, but project-shaped | a `/project-init` interview question — **offered, not imposed** |
+| Already common, often missing | a **suggested add** in `/project-audit`, with its danger column |
+| Good, but only makes sense there | nothing. Note it and move on. |
+
+The last row is the discipline. §7.8 caps rules at ~400 lines per repo, and O6
+states the test: *fires everywhere → always-on; one repo only → local problem.*
 
 The standing cost is overfitting: tuning gates against one codebase shapes them
 to that codebase. Treat sandbox findings as evidence, never as the specification.
@@ -162,12 +176,22 @@ difference is the measurement. Name them `<repo>-<n>` in age order and record
 what each one *is* — a clone with no recorded SHA is not a control, it is
 2 GB of ambiguity.
 
-| dir | SHA | branch | frozen at | role |
-|---|---|---|---|---|
-| `ghl-mcp-audit-1` | `c5e2de9f` | `audit/f4d-kit-2026-08-10` | 2026-08-11T00:47 | control — never advance |
-| `ghl-mcp-audit-2` | `5f9bb5b2` | `audit/f4d-kit-2026-08-11` | 2026-08-11T11:51 | current |
+**The sandbox is currently empty.** All three clones below were created,
+measured, and destroyed on 2026-08-11 — the full round trip is recorded in
+`docs/acceptance/2026-08-11-sandbox-lifecycle.md`. That is the procedure working:
+the recipe is the artifact, the files are a cache.
 
-Both remotes are `https://github.com/roofadvisor/GHL-MCP.git`.
+| name | SHA | branch | frozen at | role |
+|---|---|---|---|---|
+| `ghl-mcp-audit-1` | `c5e2de9f` | `audit/f4d-kit-2026-08-10` | 2026-08-11T00:47 | control, kit ~1.13 era |
+| `ghl-mcp-audit-2` | `5f9bb5b2` | `audit/f4d-kit-2026-08-11` | 2026-08-11T11:51 | kit 1.22.0 re-audit |
+| `ghl-mcp-audit-3` | `e42e9d9c` | `main` | 2026-08-11T19:43 | current main |
+
+All three remotes are `https://github.com/roofadvisor/GHL-MCP.git`.
+
+Use a **full clone**, not `--filter=blob:none` or `--depth`: `check_test_count`
+and `check_fixtures` resolve `BASE_REF` via `git ls-tree` and `git show`, so the
+baseline commit has to be in history.
 
 Measuring across them — counts are per-gate, and the formats differ, so count
 deliberately rather than with one regex:
@@ -184,16 +208,36 @@ done
 duplicated list, so the pattern above scores it 0. Count its list headers
 instead: `grep -cE '^  \['`.
 
-Baseline at kit v1.22.2, both snapshots:
+Baseline at kit v1.22.2, all three snapshots — kit held constant, so every
+column difference would be the repo:
 
-| gate | audit-1 | audit-2 |
-|---|---|---|
-| `check_catch_empty` | 64 | 64 |
-| `check_guess_lists` | 150 | 150 |
-| `check_log_hygiene` | 5 | 5 |
-| `check_statelessness` | 1 | 1 |
-| `check_raw_sql` | 0 | 0 |
-| `check_pure_imports` | 0 | 0 |
+| gate | audit-1 | audit-2 | audit-3 |
+|---|---|---|---|
+| `check_catch_empty` | 64 | 64 | 64 |
+| `check_guess_lists` | 150 | 150 | 150 |
+| `check_log_hygiene` | 5 | 5 | 5 |
+| `check_statelessness` | 1 | 1 | 1 |
+| `check_raw_sql` | 0 | 0 | 0 |
+| `check_pure_imports` | 0 | 0 | 0 |
+
+Identical across a 16-commit window while the suite grew 6840 → 6897 tests with
+zero deletions and zero fixture-case decreases. **A flat row is a result, not a
+failed measurement** — it says no new debt entered that class.
+
+The drift instruments need `BASE_REF` and measure the window rather than the
+snapshot:
+
+```bash
+cd "$KIT/.sandbox/<name>"
+BASE_REF=<baseline-sha> python3 "$KIT/scripts/check_test_count.py"
+BASE_REF=<baseline-sha> python3 "$KIT/scripts/check_commits.py"
+BASE_REF=<baseline-sha> python3 "$KIT/scripts/check_fixtures.py"
+```
+
+Read `check_fixtures`' exit code with care: it fails on I-02/I-03 convention
+findings (missing four-fixture sets, missing `_meta.recorded_at`) that are
+informational on a repo which never adopted the convention. The drift measure
+inside it is **G-05 case decreases** — grep for that specifically.
 
 ---
 
@@ -251,9 +295,10 @@ Rehydrate any row from the table in about 30 seconds:
 
 ```bash
 SB=/Users/ian-ra/code-projects/f4d/f4d-plugin-dev-sandbox
-git clone --filter=blob:none https://github.com/roofadvisor/GHL-MCP.git "$SB/ghl-mcp-audit-1"
+git clone https://github.com/roofadvisor/GHL-MCP.git "$SB/ghl-mcp-audit-1"
 git -C "$SB/ghl-mcp-audit-1" remote set-url --push origin DISABLED-sandbox-clone-no-push
 git -C "$SB/ghl-mcp-audit-1" checkout c5e2de9f
+git -C "$SB/ghl-mcp-audit-1" clean -fdX
 ```
 
 ---
