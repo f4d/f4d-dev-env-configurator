@@ -28,12 +28,34 @@ if [ ! -f "$marker" ]; then
   exit 2
 fi
 
+# Modification time, portably. GNU coreutils takes -c %Y; BSD/macOS takes -f %m
+# and rejects -c outright ("stat: illegal option -- c").
+#
+# This mattered: the previous version used the GNU form only, with `|| echo 0`
+# as the fallback. On macOS — the platform this kit is developed on — every call
+# errored, so `mtime` and `newest` were both 0, `0 -gt 0` was false, and the
+# staleness branch below could never fire. The check reported success while
+# evaluating nothing. A guard that silently degrades to a pass is the exact
+# failure class this repo exists to catch, and it shipped inside the guard.
+mtime_of() {
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || return 1
+}
+
 # Stale if any changed source file is newer than the last verify.
-mtime=$(stat -c %Y "$marker" 2>/dev/null || echo 0)
+if ! mtime=$(mtime_of "$marker"); then
+  # G-03: a guard that cannot evaluate its input must block, not allow.
+  echo "done-check: cannot read the mtime of $marker — refusing to certify done." >&2
+  echo "Neither 'stat -c %Y' (GNU) nor 'stat -f %m' (BSD) worked on this host." >&2
+  exit 2
+fi
+
 newest=0
 while IFS= read -r f; do
   [ -f "$root/$f" ] || continue
-  t=$(stat -c %Y "$root/$f" 2>/dev/null || echo 0)
+  if ! t=$(mtime_of "$root/$f"); then
+    echo "done-check: cannot read the mtime of $f — refusing to certify done." >&2
+    exit 2
+  fi
   [ "$t" -gt "$newest" ] && newest=$t
 done <<< "$changed"
 

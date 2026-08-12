@@ -72,6 +72,31 @@ mkdir -p "$dc/.claude" && touch "$dc/.claude/.last-verify"
 if [ "$got" -eq 0 ]; then echo "  PASS  allows done after verify"; pass=$((pass+1))
 else echo "  FAIL  allows done after verify (got $got)"; fail=$((fail+1)); fi
 
+# A stale verify must block. This branch never fired on macOS: the mtime lookup
+# used the GNU-only `stat -c %Y`, which BSD rejects outright, so both sides of
+# the comparison fell back to 0 and `0 -gt 0` was always false. The guard
+# reported success while evaluating nothing — verified against the pre-fix
+# script, which exited 0 on exactly this scenario.
+touch -t 202001010000 "$dc/.claude/.last-verify"
+( cd "$dc" && bash "$HOOKS/done-check.sh" >/dev/null 2>&1 ); got=$?
+if [ "$got" -eq 2 ]; then echo "  PASS  blocks done when the verify record is older than the change"; pass=$((pass+1))
+else echo "  FAIL  blocks done when the verify record is older than the change (got $got)"; fail=$((fail+1)); fi
+
+# ...and a fresh one must still pass, or the fix above would just block everything.
+touch "$dc/.claude/.last-verify"
+( cd "$dc" && bash "$HOOKS/done-check.sh" >/dev/null 2>&1 ); got=$?
+if [ "$got" -eq 0 ]; then echo "  PASS  allows done when the verify record is newer than the change"; pass=$((pass+1))
+else echo "  FAIL  allows done when the verify record is newer than the change (got $got)"; fail=$((fail+1)); fi
+
+# G-03: no readable mtime means cannot-evaluate, which must block rather than
+# allow. Shadow `stat` with a stub that always fails, leaving git and bash
+# working — emptying PATH would only prove that bash cannot start.
+statstub=$(mktemp -d); printf '#!/bin/sh\nexit 1\n' > "$statstub/stat"; chmod +x "$statstub/stat"
+( cd "$dc" && PATH="$statstub:$PATH" bash "$HOOKS/done-check.sh" >/dev/null 2>&1 ); got=$?
+if [ "$got" -eq 2 ]; then echo "  PASS  FAILS LOUD when no stat implementation works"; pass=$((pass+1))
+else echo "  FAIL  FAILS LOUD when no stat implementation works (got $got)"; fail=$((fail+1)); fi
+rm -rf "$statstub"
+
 dc2=$(mktemp -d); ( cd "$dc2" && git init -q && git config user.email t@t && git config user.name t && echo "# doc" > README.md && git add -A && git commit -qm init && echo "more" >> README.md )
 ( cd "$dc2" && bash "$HOOKS/done-check.sh" >/dev/null 2>&1 ); got=$?
 if [ "$got" -eq 0 ]; then echo "  PASS  ignores docs-only changes"; pass=$((pass+1))

@@ -10,3 +10,5 @@ __pycache__/
 # client repos used as test fixtures. Never committed: the target repos are the
 # client's, and they are GB-scale. See docs/SANDBOX.md.
 .sandbox
+.claude/.session-log
+.claude/.last-verify
