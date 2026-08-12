@@ -50,11 +50,16 @@ files it touches, so it can be picked up without re-deriving anything.
 ## Using it on another project
 
 ```bash
+claude plugin marketplace add ./          # from this repo's root; the ./ is required
+claude plugin install f4d-kit@f4d
 cd <that-project>
 claude
-# /plugin → add marketplace → point at this repo → install
 # then: /repo-builder   (new)   or   /project-audit  (existing)
 ```
+
+`claude plugin details f4d-kit` prints the component inventory and the per-turn
+token cost. `Hooks (0)` there is correct: hooks arm per-project via the
+`.claude/settings.json` that `/project-init` writes, not globally.
 
 ## Non-negotiables carried forward
 

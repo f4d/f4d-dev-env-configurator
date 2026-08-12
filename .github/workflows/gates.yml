@@ -19,7 +19,13 @@ permissions:
 
 jobs:
   harnesses:
-    name: "harnesses — 141 tests across 6 suites"
+    # No test count in this name, deliberately. It has carried one three times
+    # (123 -> 133 -> 141) and gone stale within a day each time, because nothing
+    # mechanically ties prose to reality — the same shape as a registry row
+    # claiming enforcement nobody wired. The loop below prints the real per-suite
+    # numbers on every run; a label that cannot go stale beats one that is
+    # accurate today.
+    name: "harnesses — every suite"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
