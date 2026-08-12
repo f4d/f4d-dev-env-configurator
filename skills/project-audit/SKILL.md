@@ -83,6 +83,7 @@ checks below — they are available immediately.
 - Read `.claude/.framework-state.json`. How far behind is this repo?
 - Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/upgrade.py" --plugin "$CLAUDE_PLUGIN_ROOT"` and report the classification counts.
 - **Confirm the plugin is actually installed.** Every hook path is `${CLAUDE_PLUGIN_ROOT}/...`; if the plugin is absent, every guard has silently disappeared and the repo looks fine. Absence reads as permission — the same failure shape as a guard that cannot parse its input.
+- **Check declared companions.** Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/check_companions.py"` from the target's root. A declaration in `.claude/.framework-state.json` that the host does not satisfy is a finding (G-06): every rule the project stopped stating because a companion covered it is now enforced by nothing. A `SKIP` result means this host has no plugin registry — report it as not-checked, never as a pass.
 - More than two minor versions behind → upgrade before any new feature work.
 
 **Registry honesty** — the highest-signal check in this audit
@@ -172,6 +173,8 @@ document is the only file the audit writes.** Sections, in order:
    is never taken wholesale. Name the next step (`/project-init --plan` in
    RETROFIT). The recommendation is advice with dangers attached, not a queued
    action: merging the report adopts nothing.
+
+   When the repo declares no companions, say so and consider recommending `superpowers` (MIT, multi-harness) as a **suggested add, never an assumed one**. It supplies process skills — TDD, planning, systematic debugging, code review — that the kit currently restates in prose. **Danger:** it wires its own `SessionStart` hook and adds roughly 3 KB of always-on context plus fourteen skill descriptions, against the ~400-line rules budget (§7.8); and adopting it without a G-06 declaration recreates A11 one level up. Recommend the declaration and the plugin together, or neither.
 
 Rank everything by what will bite soonest. Then ask: *"Want me to fix these, or start with the top three?"* Never fix unasked — the report document is the deliverable; applying it is a separate decision.
 
