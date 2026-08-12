@@ -422,9 +422,15 @@ git commit -m "fix: upgrade must not drop the companion declaration it did not a
 **Files:**
 - Modify: `templates/rules/REGISTRY.md` (Guards section, after the `G-05` row at line ~53)
 
+**Files (amended):**
+- Modify: `templates/rules/REGISTRY.md` (Guards section, after `G-05`)
+- Modify: `.github/workflows/gates.yml` and `.github/workflows/main-verify.yml` — add `companions` to each harness loop
+
 **Interfaces:**
-- Consumes: `scripts/check_companions.py` from Task 1 — the row may only claim `GATE` because that script now exists and is wired
+- Consumes: `tests/companions_test.sh` from Tasks 1–2 — the row may only claim `TEST` because that harness exists, passes, **and runs in CI as of this task**
 - Produces: rule ID `G-06`, referenced by Tasks 4 and 5
+
+**Sequencing note (corrected after review):** the CI wiring was originally Task 5's Step 5. Review found that left `G-06` claiming `**TEST** … done` for two commits while nothing automated ran the harness — a live §7.6 violation, and the exact failure the row itself describes. §7.3 says document a rule and wire its enforcement together, so the wiring belongs here. Never mark a row `done` in an earlier commit than the check it claims.
 
 **Why this is its own task:** §7.6 says a row claiming enforcement must have that check wired. Writing the row before Task 1 exists would make the registry dishonest; writing it after is what makes the delegation visible. A reviewer could accept the script and still reject the rule's wording.
 
@@ -458,10 +464,31 @@ print('G-06' in by_id and by_id['G-06'])
 
 Expected: prints the parsed row, not `False`. A9 makes IDs permanent, so a row that does not resolve is a broken reference in every project manifest that later adopts it.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Wire the harness into CI — this is what makes the row honest**
+
+In **both** `.github/workflows/gates.yml` (the `harnesses` job) and `.github/workflows/main-verify.yml` (the `Harnesses` step), add `companions` to the end of the loop list:
 
 ```bash
-git add templates/rules/REGISTRY.md
+          for t in hooks render_registry gate_trio statelessness conformance companions; do
+```
+
+Update the `gates.yml` job `name:` so its count stays truthful — it reads "123 tests across 5 suites"; with companions it is **133 tests across 6 suites** (40+11+39+4+29+10).
+
+Do **not** add `scripts/check_companions.py` to either file's python `gates` list. It would exit 0 with `SKIP` on every CI run (no plugin registry on a CI host), and a check that always skips reads as a check that always passes. Only the harness goes to CI — it drives the script with fixture registries via `$CLAUDE_PLUGIN_REGISTRY`, so it works anywhere.
+
+Verify:
+
+```bash
+python3 -c "import yaml; yaml.safe_load(open('.github/workflows/gates.yml')); yaml.safe_load(open('.github/workflows/main-verify.yml')); print('YAML OK')"
+for t in hooks render_registry gate_trio statelessness conformance companions; do printf "%-18s " "$t"; bash "tests/${t}_test.sh" | tail -1; done
+```
+
+Expected: `YAML OK`, then 40 / 11 / 39 / 4 / 29 / 10, all `fail=0`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add templates/rules/REGISTRY.md .github/workflows/gates.yml .github/workflows/main-verify.yml
 git commit -m "docs: G-06 — delegated rules are enforced only while the plugin is present"
 ```
 
@@ -563,22 +590,14 @@ for g in check_statelessness check_guess_lists check_catch_empty check_log_hygie
 
 Expected: all harnesses pass, all five gates clean.
 
-- [ ] **Step 5: Wire the new harness into CI**
-
-In `.github/workflows/gates.yml`, add `companions` to the harness loop in the `harnesses` job:
-
-```yaml
-          for t in hooks render_registry gate_trio statelessness conformance companions; do
-```
-
-Do **not** add `check_companions.py` to the `gates` job's script list — see the design decision at the top of this plan. It would `SKIP` on every CI run, and a check that always skips reads as a check that always passes.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add skills/project-audit/SKILL.md .github/workflows/gates.yml
+git add skills/project-audit/SKILL.md
 git commit -m "feat: audit verifies declared companions, recommends superpowers as an add"
 ```
+
+*(The CI wiring that was originally this task's Step 5 moved to Task 3 — a registry row may not claim `done` in an earlier commit than the check it names. See Task 3's sequencing note.)*
 
 ---
 

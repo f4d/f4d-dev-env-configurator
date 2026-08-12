@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   harnesses:
-    name: "harnesses — 123 tests across 5 suites"
+    name: "harnesses — 133 tests across 6 suites"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
       - name: Run all five harnesses
         run: |
           fail=0
-          for t in hooks render_registry gate_trio statelessness conformance; do
+          for t in hooks render_registry gate_trio statelessness conformance companions; do
             echo "::group::${t}_test.sh"
             bash "tests/${t}_test.sh" || fail=1
             echo "::endgroup::"
