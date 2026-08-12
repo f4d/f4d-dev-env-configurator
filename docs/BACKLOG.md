@@ -12,20 +12,47 @@
 
 ## 0 — Current state
 
-**Built and validated (v1.10.0):**
+**Built and validated (as of 2026-08-12):**
 
 | Surface | Count | Notes |
 |---|---|---|
 | Skills | 15 | repo-builder, org-profile, project-init, project-audit, framework-upgrade, promote-rule, notion-sync, new-module, new-integration, contract-first, work-intake, write-spec, decision-record, ship-it, retro |
-| Rules modules | 22 | incl. REGISTRY.md with 75 rules |
-| Hooks | 7 | guard, rule-zero, session-context, done-check, verify-record, format, _parse |
-| Gate scripts | 10 | fixtures, contract-pin, guess-lists, rollback, statelessness, upgrade, render-registry, commits, raw-sql, pure-imports |
+| Rules modules | 22 | incl. REGISTRY.md with **76** rules (G-06 added) |
+| Hooks | 7 | guard, rule-zero, session-context, done-check, verify-record, format, _parse — **now actually armed in this repo**, see below |
+| Gate scripts | 12 | fixtures, contract-pin, guess-lists, rollback, statelessness, commits, raw-sql, pure-imports, catch-empty, log-hygiene, test-count, **companions** |
 | Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner |
+| Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | 123 | hooks (40) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (29), all passing |
+| Tests | **144** | hooks (43) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (32) + companions (18) |
+| CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 44 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
+
+### What changed on 2026-08-12 — read this before trusting anything above
+
+Four things the kit demanded of every project but had never applied to itself
+were closed. Each was found by *doing* the thing, not by reading the docs.
+
+- **The kit now runs its own gates.** `.github/workflows/` did not exist; zero
+  commits had ever touched it. `check_commits.py` and `check_test_count.py`
+  need `BASE_REF` and had therefore never executed once against this repo.
+- **The kit is installable.** `.claude-plugin/marketplace.json` did not exist,
+  so every documented install path failed with `Marketplace file not found`.
+  Proven working now: `claude plugin marketplace add ./` then
+  `claude plugin install f4d-kit@f4d`.
+- **The kit's own hooks are armed.** They had never fired here — no
+  `.enforcement-log`, no `.session-log`, ever. Wiring them exposed two live
+  bugs (see A18).
+- **A single verify command exists** — `scripts/verify.sh`, which is also what
+  makes `done-check.sh` satisfiable in this repo.
+
+**Installed state:** f4d-kit is installed as a plugin (`f4d-kit@f4d`, scope
+user) from the local marketplace. Because the marketplace source is a local
+`./` path, `$CLAUDE_PLUGIN_ROOT` resolves to **this working repo**, not to the
+versioned cache copy — so edits here are live in the installed plugin. A
+consumer installing from GitHub instead gets
+`~/.claude/plugins/cache/f4d/f4d-kit/<version>/`. Do not mistake that for a bug.
 
 ---
 
@@ -143,6 +170,130 @@ against the GHL-MCP pattern.
 
 ---
 
+### A18 — scaffolded repos have a DEAD enforcement layer · **CRITICAL** · effort M
+
+**Why:** `${CLAUDE_PLUGIN_ROOT}` does **not** resolve inside a project's own
+`.claude/settings.json`. A hook command referencing it is **skipped entirely** —
+not run with an empty value. `/project-init` writes exactly that form
+(`skills/project-init/SKILL.md:191`), so **every repo this kit has ever
+scaffolded has non-functional hooks**: no secrets guard, no rule-zero, no
+done-check, no session telemetry. The GHL-MCP audits recommended adopting that
+layer; it would not have worked.
+
+Measured 2026-08-12 on CLI 2.1.220, in a project's `.claude/settings.json`:
+
+| Path form | Fires? | `$CLAUDE_PLUGIN_ROOT` |
+|---|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/hooks/x.sh` | **no** | — |
+| absolute path | yes | — |
+| repo-relative (`hooks/x.sh`, `.claude/hooks/x.sh`) | yes | — |
+| plugin-declared `hooks/hooks.json` | yes | **resolves** |
+
+Isolated with a control: a literal command in the identical position fired,
+while a variant that wrote to a marker file *before* touching the variable
+produced no output at all — so the hook never executed.
+
+The irony worth preserving: `guard-local.sh` (A11's "fallback floor") uses a
+relative path and is therefore **the only guard that has ever worked in a
+scaffolded repo**. The fallback works; the primary never did.
+
+**Build:** decide the delivery mechanism, then change what `/project-init`
+emits. Options, with what each costs — measured, not guessed:
+
+- **Absolute paths — ruled out.** The install path embeds the version
+  (`~/.claude/plugins/cache/f4d/f4d-kit/1.22.2`), so the next release points
+  every project at a directory that no longer exists. Silent death everywhere
+  at once — the exact A11 shape.
+- **Copy hooks into `.claude/hooks/`, reference relatively.** Works today
+  (guard-local.sh proves it). Cost: copies drift, so `upgrade.py` must manage a
+  new file class with the same FRAMEWORK/LOCAL/CONFLICT adjudication as rules.
+- **Plugin-declared `hooks/hooks.json` + a per-repo opt-in check inside each
+  hook** (recommended). The only form where the variable resolves; hook code
+  lives in the plugin so it updates with the plugin, and nothing is copied into
+  the target. Scope is global, so each hook must exit 0 on its first lines
+  unless the repo opts in — key it on `.claude/.framework-state.json`, which
+  `/project-init` and `upgrade.py` already write. Costs: a short-lived
+  subprocess per matched tool call in *every* repo (guard.sh matches
+  `Bash|Read|Edit|Write`), and a global blast radius that raises the bar on the
+  fail-loud tests.
+
+Whatever lands, prove it with a fired guard in a scaffolded repo — an
+`.enforcement-log` entry, not a passing unit test.
+
+**Files:** `skills/project-init/SKILL.md:191`, `hooks/hooks.json` (new),
+`scripts/upgrade.py`, `templates/scaffold/guard-local.sh`, `hooks/*.sh`
+
+---
+
+### A19 — `/project-init` never ships the gates or the secrets preflight · **high** · effort S
+
+**Why:** scaffold step 10 names `verify.yml`, `claude.yml`,
+`claude-code-review.yml`, `notion-sync.yml`. Cross-checked against
+`templates/github/`:
+
+| Workflow | Template exists | Named in step 10 |
+|---|---|---|
+| `verify.yml` | **no** | **yes** — scaffolder told to write a template that isn't there |
+| `gates.yml` | yes | **no** — the registry gates never install |
+| `preflight.yml` | yes | **no** — the secrets scan never installs |
+
+So every scaffolded repo gets Claude review and Notion sync but **not** the two
+workflows that enforce the registry. That is a live §7.6 violation in the
+product, and the likeliest reason the GHL-MCP audits kept finding
+"enforceable-but-prose". Note `templates/scaffold/verify.yml.tmpl` does exist —
+step 10 may simply be naming the wrong path.
+
+**Build:** correct step 10 to copy `gates.yml` and `preflight.yml`, resolve the
+`verify.yml` reference against `templates/scaffold/verify.yml.tmpl`, and add a
+conformance assertion that every workflow step 10 names actually exists.
+
+**Files:** `skills/project-init/SKILL.md:195-197`, `tests/conformance_test.sh`
+
+---
+
+### A20 — the agents are scaffolded but not selectable, and never audited · **medium** · effort S
+
+**Why:** three gaps found 2026-08-12:
+
+1. The interview's plan preview lists `AGENTS: contract-drift-checker,
+   schema-reviewer, integration-auditor` (`SKILL.md:133`) — **`verify-runner` is
+   missing**, though `LIFECYCLE.md:77` ("Anything"), `CADENCE.md:10` ("Per PR")
+   and `ship-it/SKILL.md:21` ("Always") all call it unconditional. The always-on
+   agent is the one absent from the plan the user approves.
+2. Nothing defines *which* agents are "selected". Step 7 says "only the selected
+   agents", but unlike modules — which have explicit `Q8 = yes → livesystem`
+   mappings — agents have no selection rule at all.
+3. `/project-audit` never checks agent presence. A repo can lose its agents and
+   no audit notices. The A11 shape again.
+
+**Files:** `skills/project-init/SKILL.md:133,190`, `skills/project-audit/SKILL.md`
+
+---
+
+### A21 — six scanners duplicate the SKIP tuple `_common.py` exists to hold · **medium** · effort S
+
+**Why:** `scripts/_common.py` exists *because* `check_guess_lists.py` flagged
+`git rev-parse --show-toplevel` duplicated across four scripts — its docstring
+cites S-05, "extract one dependency-free leaf both sides import, never copy".
+Only `check_statelessness.py` imports `SKIP_DIRS`. Six others define their own
+near-identical `SKIP` tuple, and they disagree: only statelessness and
+guess-lists filter dot-directories; `check_test_count.py` skips just
+`.git`/`.venv`/`.next` by exact name; `check_fixtures.py` uses a substring match
+and excludes neither `build` nor `.next`.
+
+Measured consequence: 80 real files in a dot-prefixed directory took the kit's
+own counted test cases from 13 to **345**, because `check_test_count` walked in
+while other gates did not. The scanners do not agree on what the repo is.
+
+**Build:** consolidate onto `_common.SKIP_DIRS`, extending it where a scanner
+genuinely needs more (raw_sql's migrations/db/sql) via a documented extension
+rather than a copy. Make dot-directory handling consistent and deliberate. Add a
+test asserting every scanner agrees on one fixture tree.
+
+**Files:** `scripts/_common.py`, `scripts/check_{catch_empty,log_hygiene,pure_imports,raw_sql,guess_lists,test_count,fixtures}.py`
+
+---
+
 ### First live test — executed 2026-08-10, findings folded back
 
 Target: `roofadvisor/GHL-MCP` on a scratch clone; deliverable is their PR #1042
@@ -221,6 +372,57 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 | O5 | Extract the doctrine (`silent-degradation`, `guards`, `capability-parity`) as a portable artifact | Most valuable content, least tool-coupled; survives a move off Claude Code |
 | O6 | Cross-project rule analytics | Fires everywhere → always-on. Never anywhere → delete. One repo only → local problem |
 | O2b | `/project-audit` asks the *unanswered* interview questions on an existing repo | Turns retrofit into a partial interview (A4 built — unblocked) |
+| O7 | Multi-platform delivery — core + per-platform adapters | The stated goal: let several agent platforms install a native plugin for setup and audit. See below; **O5 is its critical path** |
+
+### O7 — multi-platform delivery (core + adapters)
+
+**The goal (Ian, 2026-08-12):** multiple agent platforms should be able to
+install a native plugin and interact with the kit "for setup and audit
+purposes" — from a distributed enterprise team down to one person on a personal
+project.
+
+**What the split actually looks like.** Most of the kit is already portable; the
+coupling is concentrated in one layer:
+
+| Portable today | Claude-Code-specific |
+|---|---|
+| Doctrine — rules modules, REGISTRY, LIFECYCLE, process templates | `skills/*/SKILL.md` format |
+| All 12 gate scripts (plain Python, zero Claude dependency) | `agents/*.md` subagent format |
+| Templates — workflows, compose, PR/ADR/spec | `hooks/` event contract + JSON shape |
+| The audit *method* | `.claude-plugin/` manifests, `settings.json` |
+
+That is O5 restated with a deadline: extract the doctrine as a portable
+artifact, then wrap it per platform. `superpowers` is a worked example in the
+plugin cache — MIT, one repo shipping `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, a
+`gemini-extension.json`, and adapter references for Codex, Gemini, Pi and
+Antigravity.
+
+**Claude Cowork — read the docs 2026-08-12, and this is the decisive constraint.**
+Per support.claude.com/en/articles/13345190: Cowork "uses the same agentic
+architecture that powers Claude Code, with no terminal required", and a Cowork
+plugin is a bundle of **skills, connectors (MCPs), and sub-agents**.
+
+**Hooks are not in that list.** So Cowork can host the kit's advisory half — 15
+skills and 4 agents, which is exactly the *setup and audit* surface Ian named —
+but it cannot host the enforcement half. On Cowork, "guards, not memos" is
+necessarily memos.
+
+That is not a reason to skip Cowork. It is a reason to be explicit about which
+half goes where: **skills and agents are the portable interaction surface;
+hooks are the enforcement surface and stay in whichever environment does the
+actual coding.** A17-era doctrine says a rule delegated to something that cannot
+enforce it is unenforced (G-06) — so a Cowork adapter must not claim enforcement
+it structurally cannot deliver, and `/project-audit` running there must report
+that limit rather than pass silently.
+
+**Open, not yet checked:** whether Cowork can execute the Python gate scripts at
+all ("no terminal required" suggests a different execution model). If it cannot,
+the audit surface there is agent-driven inspection only, and its findings are
+weaker than a gate run — which must be stated in the report, not glossed.
+
+**Depends on:** A18. The hook-delivery mechanism has to be settled before the
+adapter boundary can be drawn, because A18's answer determines whether hooks
+travel with the plugin or with the project.
 
 ---
 
@@ -237,15 +439,32 @@ ST-10..12 (statelessness) · I-06 (idempotent ingestion)
 ## 6 — Priority order
 
 ```
-NOW      B-01 Notion approval    (blocked on Ian)
+NOW      A18  scaffolded repos have a DEAD enforcement layer   <- CRITICAL, blocks O7
+         A19  /project-init never ships gates.yml/preflight.yml
+
+         B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
-NEXT     O4 tier-2 combo runs (one per minor)  ·  then LATER items
+NEXT     A20  agent wiring (verify-runner absent, no selection rule, never audited)
+         A21  SKIP tuple dedup — the kit's own S-05 violation
+         A17  object-member guess-list gate
 
-SOON              O4   conformance suite (now also owns: full-spec plan/execute parity + full-Step-4 delete discipline)
+SOON     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
+              since it is an end-to-end /project-init exercise. Run it after them.
+         S-04 promotion: eslint switch-exhaustiveness-check / mypy
 
-LATER    N-01 Workers migration — at 3rd repo or beta exit
+LATER    O7   multi-platform delivery (core + adapters) — needs O5, blocked on A18
+         N-01 Workers migration — at 3rd repo or beta exit
 ```
+
+**Why A18 is first.** Every scaffolded repo currently has non-functional hooks.
+Until the delivery mechanism is settled, `/project-init` keeps producing repos
+whose enforcement layer looks present and does nothing — and O7's adapter
+boundary cannot be drawn without that answer.
+
+**Why O4 moved.** It is an end-to-end `/project-init` run, so it verifies A18
+and A19 rather than duplicating them. Running it first would only certify the
+broken scaffolder.
 
 ---
 
