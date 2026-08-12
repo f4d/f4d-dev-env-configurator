@@ -38,6 +38,7 @@ git remote -v   # expect: github.com/f4d/f4d-dev-env-configurator
 | What's the enforcement model? | `templates/process/ENFORCEMENT.md` |
 | What ships, and how to install | `README.md` |
 | What changed, version by version | `CHANGELOG.md` |
+| How to test the kit against real repos | `docs/SANDBOX.md` |
 
 ## Resuming work
 
