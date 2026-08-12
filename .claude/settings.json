@@ -1,11 +1,12 @@
 {
+  "_comment": "Repo-relative hook paths, deliberately. ${CLAUDE_PLUGIN_ROOT} does NOT resolve in a project's own .claude/settings.json — a hook command referencing it is skipped entirely, not run with an empty value. Verified on CLI 2.1.220: a literal command in the identical position fires, the ${CLAUDE_PLUGIN_ROOT} form produces no output at all, and absolute or relative paths both fire. This repo's hooks live in hooks/, so a repo-relative path is the simplest form that works.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-context.sh"
+            "command": "hooks/session-context.sh"
           }
         ]
       }
@@ -16,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh"
+            "command": "hooks/guard.sh"
           }
         ]
       },
@@ -25,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/rule-zero.sh"
+            "command": "hooks/rule-zero.sh"
           }
         ]
       }
@@ -36,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/format.sh"
+            "command": "hooks/format.sh"
           }
         ]
       },
@@ -45,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/verify-record.sh"
+            "command": "hooks/verify-record.sh"
           }
         ]
       }
@@ -55,7 +56,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/done-check.sh"
+            "command": "hooks/done-check.sh"
           }
         ]
       }
