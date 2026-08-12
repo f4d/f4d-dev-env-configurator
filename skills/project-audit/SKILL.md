@@ -83,7 +83,7 @@ checks below — they are available immediately.
 - Read `.claude/.framework-state.json`. How far behind is this repo?
 - Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/upgrade.py" --plugin "$CLAUDE_PLUGIN_ROOT"` and report the classification counts.
 - **Confirm the plugin is actually installed.** Every hook path is `${CLAUDE_PLUGIN_ROOT}/...`; if the plugin is absent, every guard has silently disappeared and the repo looks fine. Absence reads as permission — the same failure shape as a guard that cannot parse its input.
-- **Check declared companions.** Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/check_companions.py"` from the target's root. A declaration in `.claude/.framework-state.json` that the host does not satisfy is a finding (G-06): every rule the project stopped stating because a companion covered it is now enforced by nothing. A `SKIP` result means this host has no plugin registry — report it as not-checked, never as a pass.
+- **Check declared companions.** Run `python3 "$CLAUDE_PLUGIN_ROOT/scripts/check_companions.py"` from the target's root. A declaration in `.claude/.framework-state.json` that the host does not satisfy is a finding (G-06): every rule the project stopped stating because a companion covered it is now enforced by nothing. A `SKIP` result means this host has no plugin registry — report it as not-checked, never as a pass. Likewise, `OK — no companion plugins declared` is not a pass in any meaningful sense — it means there is nothing to verify, not that the project was reviewed and found to need none; treat it as the trigger for the recommendation below, never as a clean bill of health.
 - More than two minor versions behind → upgrade before any new feature work.
 
 **Registry honesty** — the highest-signal check in this audit

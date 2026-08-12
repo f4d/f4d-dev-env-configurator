@@ -53,6 +53,8 @@ def declared(base):
     except (OSError, ValueError) as exc:
         # G-03: a guard that cannot evaluate its input must block, not allow.
         die(f"{STATE} is unreadable ({exc}). Cannot verify companions.")
+    if not isinstance(state, dict):
+        die(f"{STATE} must be a JSON object, got {type(state).__name__}")
     companions = state.get("companions", {})
     if not isinstance(companions, dict):
         die(f"{STATE}: 'companions' must be an object, got {type(companions).__name__}")
@@ -60,7 +62,8 @@ def declared(base):
 
 
 def installed_versions(path):
-    """{plugin_name: (major, minor, patch)} from Claude Code's registry.
+    """{plugin_name: ((major, minor, patch), raw_version_string)} from Claude
+    Code's registry.
 
     Keys there are 'name@marketplace' and each maps to a list of install
     records; keep the highest version seen for a given name.
@@ -70,11 +73,20 @@ def installed_versions(path):
             data = json.load(fh)
     except (OSError, ValueError) as exc:
         die(f"plugin registry at {path} is unreadable ({exc})")
+    if not isinstance(data, dict):
+        die(f"plugin registry at {path} must be a JSON object, got {type(data).__name__}")
+    plugins = data.get("plugins") or {}
+    if not isinstance(plugins, dict):
+        die(f"plugin registry at {path}: 'plugins' must be an object, got {type(plugins).__name__}")
     found = {}
-    for key, entries in (data.get("plugins") or {}).items():
+    for key, entries in plugins.items():
         name = key.split("@", 1)[0]
         for entry in entries or []:
-            raw = (entry or {}).get("version")
+            if not entry:
+                continue
+            if not isinstance(entry, dict):
+                die(f"plugin registry at {path}: install record for '{name}' must be an object, got {type(entry).__name__}")
+            raw = entry.get("version")
             if not raw:
                 continue
             ver = parse_version(raw)
@@ -90,6 +102,17 @@ def main():
         print("check_companions: OK — no companion plugins declared (CP-01).")
         return 0
 
+    # Normalise once, here, so every downstream read of a spec can assume a
+    # dict without repeating `or {}`. `null` (no extra fields, just "declared")
+    # is a legitimate spec and becomes {}; anything else that isn't a dict
+    # (e.g. "superpowers": "latest") is a malformed declaration, not a spec
+    # missing optional fields — die() rather than let it surface as an
+    # AttributeError on what should be the success path (I2).
+    wanted = {k: (v or {}) for k, v in wanted.items()}
+    for name, spec in wanted.items():
+        if not isinstance(spec, dict):
+            die(f"{STATE}: companions.{name} must be an object or null, got {type(spec).__name__}: {spec!r}")
+
     registry = plugin_registry_path()
     if not os.path.exists(registry):
         print("check_companions: SKIP — no Claude Code plugin registry on this host.")
@@ -100,7 +123,7 @@ def main():
     have = installed_versions(registry)
     problems = []
     for name in sorted(wanted):
-        spec = wanted[name] or {}
+        spec = wanted[name]
         need_raw = spec.get("min_version", "0.0.0")
         need = parse_version(need_raw)
         if name not in have:
