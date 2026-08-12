@@ -39,12 +39,18 @@ def load_state(base):
     return json.load(open(p)) if os.path.exists(p) else {"version": None, "files": {}}
 
 
-def save_state(base, version, files, registry_ids=None):
+def save_state(base, version, files, registry_ids=None, companions=None):
     p = os.path.join(base, STATE)
     os.makedirs(os.path.dirname(p), exist_ok=True)
     payload = {"version": version, "files": files}
     if registry_ids is not None:
         payload["registry_ids"] = sorted(registry_ids)
+    # An upgrade must not silently drop a declaration it did not author.
+    # This payload is rebuilt from scratch every time, so anything not named
+    # here disappears — and a companion declaration that vanishes makes CP-01
+    # pass for the wrong reason.
+    if companions:
+        payload["companions"] = companions
     json.dump(payload, open(p, "w"), indent=2, sort_keys=True)
 
 
@@ -194,7 +200,7 @@ def main():
         registry_ids = list(by_id)
     except SystemExit:
         registry_ids = state.get("registry_ids")
-    save_state(base, newver, files, registry_ids)
+    save_state(base, newver, files, registry_ids, companions=state.get("companions"))
 
     print()
     print(f"Wrote {len(written)} file(s). Baseline recorded at {newver}.")

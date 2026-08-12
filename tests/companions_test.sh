@@ -50,6 +50,20 @@ printf '%s' "$out" | grep -q "superpowers"; check "message names the companion" 
 printf '%s' "$out" | grep -q "5.9.0"; check "message names the installed version" 0 $?
 printf '%s' "$out" | grep -q "6.2.0"; check "message names the required version" 0 $?
 
+# An upgrade must not destroy the declaration. save_state rebuilds the payload
+# from scratch, so an unknown key is dropped unless it is carried deliberately.
+writestate '{"version":"1.0.0","files":{},"companions":{"superpowers":{"min_version":"6.2.0"}}}'
+( cd "$T" && python3 - "$KIT" <<'PY' >/dev/null 2>&1
+import sys, os
+sys.path.insert(0, os.path.join(sys.argv[1], "scripts"))
+import upgrade
+state = upgrade.load_state(".")
+upgrade.save_state(".", "1.22.2", state.get("files", {}), companions=state.get("companions"))
+PY
+)
+python3 -c "import json,sys; sys.exit(0 if json.load(open('$T/.claude/.framework-state.json')).get('companions',{}).get('superpowers') else 1)"
+check "upgrade preserves the companion declaration" 0 $?
+
 rm -rf "$T"
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
