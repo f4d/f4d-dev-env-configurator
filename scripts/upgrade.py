@@ -36,15 +36,34 @@ def digest(path):
 
 def load_state(base):
     p = os.path.join(base, STATE)
-    return json.load(open(p)) if os.path.exists(p) else {"version": None, "files": {}}
+    state = json.load(open(p)) if os.path.exists(p) else {}
+    state.setdefault("version", None)
+    state.setdefault("files", {})
+    return state
 
 
-def save_state(base, version, files, registry_ids=None):
+def save_state(base, version, files, registry_ids=None, companions=None):
     p = os.path.join(base, STATE)
     os.makedirs(os.path.dirname(p), exist_ok=True)
-    payload = {"version": version, "files": files}
+    # C1 taught that a partial state file (e.g. the scaffold's step 7, before
+    # step 11 has ever run) must not crash a reader. The symmetric write-side
+    # risk is silent data loss: enumerating known keys and dropping everything
+    # else closes ONE instance of "upgrade destroys a declaration it did not
+    # author" (companions, previously). Starting the payload from the existing
+    # state's UNKNOWN keys instead closes the whole class — any future key
+    # added to .framework-state.json survives an upgrade even if save_state is
+    # never taught its name.
+    known = ("version", "files", "registry_ids", "companions")
+    payload = {k: v for k, v in load_state(base).items() if k not in known}
+    payload["version"] = version
+    payload["files"] = files
     if registry_ids is not None:
         payload["registry_ids"] = sorted(registry_ids)
+    # Symmetric with registry_ids above: check presence, not truthiness, so an
+    # explicit {} (a real, deliberate "no companions" state) is not silently
+    # dropped the way a truthy-only check (`if companions:`) would drop it.
+    if companions is not None:
+        payload["companions"] = companions
     json.dump(payload, open(p, "w"), indent=2, sort_keys=True)
 
 
@@ -194,7 +213,7 @@ def main():
         registry_ids = list(by_id)
     except SystemExit:
         registry_ids = state.get("registry_ids")
-    save_state(base, newver, files, registry_ids)
+    save_state(base, newver, files, registry_ids, companions=state.get("companions"))
 
     print()
     print(f"Wrote {len(written)} file(s). Baseline recorded at {newver}.")

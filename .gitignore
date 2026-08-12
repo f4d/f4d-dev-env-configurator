@@ -5,3 +5,8 @@ __pycache__/
 .DS_Store
 .DS_Store
 .claude/.enforcement-log
+
+# Plugin-dev sandbox — a symlink to ../f4d-plugin-dev-sandbox holding real
+# client repos used as test fixtures. Never committed: the target repos are the
+# client's, and they are GB-scale. See docs/SANDBOX.md.
+.sandbox

@@ -97,7 +97,7 @@ Carry into every later step: the company's `constraints` block goes into `.claud
 
 ### Round 3 — Conditional modules
 
-Only ask what applies, based on Rounds 1–2. Each YES pulls in a rules module and its associated tests, hooks, and local-stack pieces.
+Only ask what applies, based on Rounds 1–2. Most rows pull in a rules module and its associated tests, hooks, and local-stack pieces.
 
 | Ask when | Question | Enables module |
 |---|---|---|
@@ -110,6 +110,7 @@ Only ask what applies, based on Rounds 1–2. Each YES pulls in a rules module a
 | Multiple sources in Q5 | **Do you need to reconcile or merge data across those sources into one canonical record?** | `data-integration` |
 | Frontend != none | **Any hard performance or accessibility requirements?** | `frontend` |
 | Q8 = yes | **What in production must never break, and what must never be touched by an agent session?** | `livesystem` |
+| Always | **Which companion plugins should this repo expect?** Default: `superpowers` (MIT, multi-harness — ships `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`; process skills for TDD, planning, debugging, code review). Offered, never imposed — a declaration is a promise the audit will check. | — (declaration in `.framework-state.json`, not a rules module) |
 | PII, health, payment data hinted | **Does this hold personal, payment, or regulated data?** | `dataprotection` |
 
 **Rule:** never assume a module. If storage wasn't mentioned, ask — don't skip and don't include. Storage is configured per project, never inherited by default.
@@ -131,6 +132,7 @@ MODULES:   core, api, database, python, typescript, data-integration, storage
 SKIPPED:   determinism, money, blockchain, keysafety, frontend-perf, livesystem
 HOOKS:     guard.sh (secrets, prod), format.sh
 AGENTS:    contract-drift-checker, schema-reviewer, integration-auditor
+COMPANIONS: superpowers >= 6.2.0   (declared; /project-audit will verify it stays installed)
 VERIFY:    uv run ruff check . && uv run mypy . && uv run pytest && pnpm typecheck && pnpm test
 LOCAL:     docker compose — postgres 16, mailpit, minio (R2-compatible)
 ```
@@ -187,7 +189,7 @@ Read `references/scaffold-spec.md` for exact file contents and layout. At entry 
 4. `.claude/rules/*.md` — copy only the selected modules from `${CLAUDE_PLUGIN_ROOT}/templates/rules/`. **Never copy `REGISTRY.md`** — instead write `.claude/rules/manifest.json`: `{"rules": [...], "overrides": {}}`, where `rules` lists the IDs from each selected module's section of the plugin registry (Core, Guards, and Silent degradation always). Add an `overrides` entry for any row whose enforcement genuinely differs in this project — a manifest asserting checks that do not exist is worse than none. Prove it resolves: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/render_registry.py" --validate` must pass. The project renders its registry view on demand; it never holds a copy that can drift.
 5. `.claude/hooks/guard-local.sh` — copied from `templates/scaffold/guard-local.sh`, executable. This is A11's floor: a self-contained secrets+force-push guard that survives plugin absence (every other hook path is `${CLAUDE_PLUGIN_ROOT}/...` and silently vanishes with the plugin). Wire it in `settings.json` ALONGSIDE the plugin guard — A6 proved any exit-2 blocks regardless of order, so double-wiring is safe.
 6. `.claude/settings.json` — hooks wired, **including `SessionStart`**. A15 decided: the hook's primary job is **session telemetry** (`.claude/.session-log` — the evidence `session_report.py` and `/retro` run on); rules loading is automatic on current CLIs (empirically verified, 2.1.220) and the injection is redundant defense-in-depth. Wire it for the telemetry; never cite it as the reason rules load — verify with `/context`. See `templates/process/ENFORCEMENT.md`.
-7. `.claude/agents/*.md` — only the selected agents
+7. `.claude/agents/*.md` — only the selected agents. Also write `.claude/.framework-state.json` recording the interview's companion answer — the **full initial object**, not just the `companions` key: `{"version": null, "files": {}, "companions": {"<name>": {"min_version": "<v>", "why": "<one line>", "source": "<marketplace or URL>"}}}`. The framework baseline (`version`/`files`) is not recorded until step 11 runs `upgrade.py --apply`, so a companions-only file is the only state anything reads until then — and `upgrade.py` must be able to load it without crashing (C1). Declare only what the project genuinely relies on: G-06 means an unmet declaration is a finding, so declaring a plugin nobody uses manufactures a permanent false alarm. Verify with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_companions.py"` before finishing.
 8. Local stack + `scripts/dev-reset.sh`:
    - Multi-instance project → `docker-compose.multi.yml` (two app instances, nginx round-robin, redis, and a **separate migrate step**) plus `scripts/nginx-lb.conf`. **This is the default.** One instance locally makes every statefulness bug invisible until production.
    - Single-instance project → `docker-compose.yml`, and ADR 002 recording that choice with its reversal cost.
