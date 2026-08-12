@@ -60,7 +60,7 @@ So the script distinguishes three outcomes:
 - Consumes: `_common.repo_root() -> str` (exists today)
 - Produces:
   - `_common.plugin_registry_path() -> str` — absolute path to the host's `installed_plugins.json`, honouring `$CLAUDE_PLUGIN_REGISTRY` for tests
-  - `check_companions.installed_versions(path: str) -> dict[str, tuple[int, ...]]`
+  - `check_companions.installed_versions(path: str) -> dict[str, tuple[tuple[int, int, int], str]]` — each value pairs the parsed version with the raw string, so error messages can print `5.9.0` rather than `(5, 9, 0)`
   - `check_companions.parse_version(v: str) -> tuple[int, ...]`
   - `check_companions.declared(base: str) -> dict[str, dict]` — the `companions` map from framework-state
 
@@ -297,7 +297,7 @@ if __name__ == "__main__":
 bash tests/companions_test.sh
 ```
 
-Expected: `pass=10 fail=0`
+Expected: `pass=9 fail=0` — the harness in Step 1 contains nine `check()` calls. If you count differently, report the number you actually get; never edit the harness to hit a stated total.
 
 - [ ] **Step 6: Confirm it is clean against this repo**
 
