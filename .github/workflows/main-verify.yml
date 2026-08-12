@@ -23,6 +23,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
+      - name: Install the conformance harness's one dependency
+        # setup-python gives a clean interpreter with no PyYAML, so
+        # conformance_test.sh's preflight failed here on the very first push to
+        # master — while the PR's gates.yml run was green on the same commit,
+        # because that job had no setup-python and inherited the runner image's
+        # preinstalled PyYAML. This is precisely the divergence this workflow
+        # exists to catch, and it caught it on its first run.
+        run: pip install pyyaml
       - name: Restore executable bits
         run: chmod +x hooks/*.sh tests/*.sh bootstrap.sh
       - name: Harnesses

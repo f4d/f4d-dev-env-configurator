@@ -23,6 +23,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Install the conformance harness's one dependency
+        # conformance_test.sh preflights `import yaml` and fails loud without it.
+        # This job previously had no setup-python and passed only because the
+        # runner image happens to preinstall PyYAML into the system interpreter —
+        # green for a reason nothing in this repo controls. main-verify.yml DID
+        # pin an interpreter, got a clean one, and went red on master while this
+        # job was green on the same commit. Naming the dependency removes the
+        # difference; an implicit dependency is one the next runner image can
+        # delete without telling anyone.
+        run: pip install pyyaml
       - name: Restore executable bits
         # Rule 0 of this repo: a hook that is not executable fails SILENTLY.
         run: chmod +x hooks/*.sh tests/*.sh bootstrap.sh
