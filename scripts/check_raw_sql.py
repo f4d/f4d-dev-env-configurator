@@ -21,10 +21,13 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import repo_root  # noqa: E402
+from _common import SKIP_DIRS, repo_root  # noqa: E402
 
 HANDLER_DIRS = {"routes", "handlers", "controllers", "api", "endpoints"}
-SKIP = (".git", "node_modules", ".venv", "dist", "build", ".next", "migrations", "db", "sql", "fixtures", "__fixtures__", "testdata")
+# Additive (A21): migrations/db/sql genuinely need excluding here — raw SQL
+# living there is expected, not a D-06 violation. fixtures/testdata are not
+# source either. Extend the shared skip set rather than hand-copy it.
+SKIP = SKIP_DIRS | {"migrations", "db", "sql", "fixtures", "__fixtures__", "testdata"}
 EXT = (".py", ".ts", ".tsx", ".js", ".jsx")
 SQL = re.compile(
     r"""['"`]\s*(?:SELECT\s+[\w*,\s]+\s+FROM\s|INSERT\s+INTO\s|UPDATE\s+\w+\s+SET\s|DELETE\s+FROM\s|DROP\s+(?:TABLE|INDEX)\s|ALTER\s+TABLE\s|TRUNCATE\s+TABLE\s)""",
@@ -37,7 +40,7 @@ def main():
     base = repo_root()
     findings, bare_annotations, scanned = [], [], 0
     for dirpath, dirnames, filenames in os.walk(base):
-        dirnames[:] = [d for d in dirnames if d not in SKIP]
+        dirnames[:] = [d for d in dirnames if d not in SKIP and not d.startswith(".")]
         if not (set(dirpath.split(os.sep)) & HANDLER_DIRS):
             continue
         for name in filenames:

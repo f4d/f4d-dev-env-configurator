@@ -52,6 +52,7 @@ promote-when trigger. `JUDGMENT` is a finished state.
 | G-04 | Unguardable residuals are named explicitly | JUDGMENT | PROSE + DoD | — |
 | G-05 | Improving a fixture must not delete a case it expressed | TEST | **GATE** (`check_fixtures` case-diff) | done |
 | G-06 | A rule delegated to a companion plugin is only enforced while that plugin is installed | TEST | **TEST** (`tests/companions_test.sh`) | done |
+| G-07 | A selected audit agent enforces nothing once its `.claude/agents/*.md` file is missing | TEST | **TEST** (`tests/agent_presence_test.sh`, `scripts/check_agents.py`) | done |
 
 ## Silent degradation
 

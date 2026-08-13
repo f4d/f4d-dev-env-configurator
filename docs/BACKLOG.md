@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.22.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-13 · **Version shipped:** 1.23.5 · **Status:** all validation green (261/261 test assertions, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -17,17 +17,17 @@
 | Surface | Count | Notes |
 |---|---|---|
 | Skills | 15 | repo-builder, org-profile, project-init, project-audit, framework-upgrade, promote-rule, notion-sync, new-module, new-integration, contract-first, work-intake, write-spec, decision-record, ship-it, retro |
-| Rules modules | 22 | incl. REGISTRY.md with **76** rules (G-06 added) |
+| Rules modules | 22 | incl. REGISTRY.md with **77** rules (G-07 added) |
 | Hooks | 7 | guard, rule-zero, session-context, done-check, verify-record, format, _parse — **now actually armed in this repo**, see below |
-| Gate scripts | 12 | fixtures, contract-pin, guess-lists, rollback, statelessness, commits, raw-sql, pure-imports, catch-empty, log-hygiene, test-count, **companions** |
-| Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner |
+| Gate scripts | 13 | fixtures, contract-pin, guess-lists, rollback, statelessness, commits, raw-sql, pure-imports, catch-empty, log-hygiene, test-count, companions, **agents** |
+| Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner — selection is now derived from `decided_modules`, not all-four-always (A20) |
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **144** | hooks (43) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (32) + companions (18) |
+| Tests | **261** | hooks (57) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (48) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
-**Rule status:** 44 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
+**Rule status:** 45 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
 
 ### What changed on 2026-08-12 — read this before trusting anything above
 
@@ -155,81 +155,182 @@ load. All doctrine sites updated with the evidence.
 
 ---
 
-### A17 — guess-list gate misses object-member lists · **low** · effort S
+### A17 — guess-list gate misses object-member lists · ✅ built in 1.23.1
 
-**Why:** re-audit measurement (2026-08-11) — `check_guess_lists` matches
-string-literal collections only; GHL-MCP's six-file `CUSTOM_OBJECTS`
-replication (object members with repeated key values) passes clean. The
-highest-value S-05 instance found by agents is invisible to the S-05 gate.
+Extended `check_guess_lists.py` with a second, name-agnostic detection path
+for array-of-object literals: a per-entry property qualifies as an
+identifying key purely on shape — present on every entry, string-valued, and
+distinct across entries within its own array — never by matching `objectKey`
+or any other name literally. Its sorted values then fingerprint exactly like
+a flat list would, reusing the same 2+-files duplicate threshold (now a
+shared `MIN_MEMBERS` constant rather than the same magic number twice) and
+the same CLI-argument exclusion. Red-green measured against a fixture
+mirroring the real GHL-MCP `CUSTOM_OBJECTS` shape (two files: a
+`label`/`objectKey` variant matching `mcpServer.ts`/`mainReportQueue.ts`, and
+a `label`/`objectId`/`objectKey` variant matching `mainReportFixed.ts`, values
+taken from the real repo): pre-fix, `check_guess_lists.py` reported "No
+duplicate constant lists found" against it (red); post-fix, it blocks and
+names the `objectKey` fingerprint duplicated across both files (green) — and
+correctly does **not** unify the two files' `label` values, which drift in
+the real repo ("Building" vs "Buildings - Roof Records"), proving exact-match
+fingerprinting rather than fuzzy overlap. Fail-loud cases proven: an
+object-array with no discernible stable key (every column repeats) reports
+clean rather than crashing or false-flagging; a file that cannot be read
+(dangling symlink) is skipped without masking a real duplicate found
+elsewhere in the same walk, matching the pre-existing per-file
+read-exception path. Regression check: `bash scripts/verify.sh` run
+immediately before and after the `check_guess_lists.py` code change (before
+any new test cases were added) produced byte-identical output at 159/159
+assertions — the code change alone changes no existing behavior. Six new
+cases then added to `tests/gate_trio_test.sh` for the new path (43 → 49,
+full suite 159 → 165), all green; the kit's own source still reports clean
+post-change, so the extension adds no new false positives against a real
+repo.
+REGISTRY.md's S-05 row checked: the rule text ("no two guess lists") is
+already generic and needed no change. Its Today/Promote-when columns read
+PROSE / "duplicate-constant-list scan in CI," but `check_guess_lists.py` has
+in fact been wired into `templates/github/gates.yml` and this repo's own
+`.github/workflows/gates.yml` all along — that pair is stale and should read
+GATE (`check_guess_lists`) / "done," matching the S-03/S-07 rows. Out of
+scope for this item (a registry-accuracy defect unrelated to the
+object-member heuristic); flagged separately rather than folded in here.
 
-**Build:** extend the heuristic to object-array literals — fingerprint on the
-sorted values of a recurring key (e.g. `objectKey`) across 2+ files. Red-green
-against the GHL-MCP pattern.
+**Addendum — PR #35 review (comment handling):** the automated reviewer found
+a real gap in the shipped `OBJARR_RE`: its entry separator was bare
+`\s*,\s*`, so any comment sitting between entries broke the match outright
+and the array was silently skipped rather than fingerprinted. Not an edge
+case — hand-maintained lookup arrays get exactly this kind of per-entry
+annotation (`{ id: 'one' }, // first`) for the same copy-paste-prone reason
+S-05 exists to catch them in the first place. Reproduced directly with the
+reviewer's own shape: pre-fix, `check_guess_lists.py` reported "No duplicate
+constant lists found" against a two-file duplicate where each entry carried
+a trailing `//` comment; post-fix, exit 1 with the correct fingerprint. Fix:
+a new `GAP` fragment (`//` line comments and `/* */` block comments mixed
+with whitespace) replaces the bare `\s*` in every gap a comma or bracket
+used to own outright — before the first entry, around each comma, after the
+last one — while `[^{}]*`'s brace-spanning refusal is untouched, preserving
+the conservative "skip rather than mis-parse" contract for the shapes still
+deliberately unhandled (nested block comments, a `*/` hiding inside a
+string, a comment holding a stray brace). Five new cases added to
+`tests/gate_trio_test.sh`, red-then-green against the reviewer's own shapes:
+per-entry line comments (plus the same shape in a single file, confirming no
+false positive), block comments (one file annotated, the other left plain,
+proving the fingerprint rides on entry values rather than comment text or
+its presence), a comment leading the array before the first entry (the
+second shape the reviewer's "per-entry or leading" phrasing named), and a
+green regression guard proving nested-object entries still fail to match,
+unchanged. `gate_trio_test.sh` 49 → 54, full suite (`verify.sh`) 165 → 170,
+all green throughout; `check_guess_lists.py` still reports clean against the
+kit's own source post-change.
 
-**Files:** `scripts/check_guess_lists.py`
+**Files:** `scripts/check_guess_lists.py`, `tests/gate_trio_test.sh`
 
 ---
 
-### A18 — scaffolded repos have a DEAD enforcement layer · **CRITICAL** · effort M
+### A18 — scaffolded repos have a DEAD enforcement layer · ✅ built in 1.23.0
 
-**Why:** `${CLAUDE_PLUGIN_ROOT}` does **not** resolve inside a project's own
-`.claude/settings.json`. A hook command referencing it is **skipped entirely** —
-not run with an empty value. `/project-init` writes exactly that form
-(`skills/project-init/SKILL.md:191`), so **every repo this kit has ever
-scaffolded has non-functional hooks**: no secrets guard, no rule-zero, no
-done-check, no session telemetry. The GHL-MCP audits recommended adopting that
-layer; it would not have worked.
+Shipped the recommended option. `hooks/hooks.json` (new) declares `guard.sh`,
+`rule-zero.sh`, `done-check.sh`, `format.sh`, `verify-record.sh`, and
+`session-context.sh` **globally, at the plugin level** — the only place
+`${CLAUDE_PLUGIN_ROOT}` resolves. Each hook's first move is now
+`hook_opted_in()` (`hooks/_parse.sh`): one `git rev-parse`, one `[ -f ]` against
+`.claude/.framework-state.json`, `exit 0` before stdin is even read if absent.
+Presence, not content, is the whole signal — a corrupted-but-present state file
+still counts as opted in (tested), so corrupting the marker can never become a
+way to silently disable enforcement the way removing the plugin already could.
+`/project-init` now writes **only** `guard-local.sh` into a target's
+`settings.json`; the broken `${CLAUDE_PLUGIN_ROOT}` form step 6 used to
+describe is gone from `SKILL.md`, and `scaffold-spec.md` now carries the exact
+replacement content. **No migration needed** for repos scaffolded before this
+fix — every one already has `.claude/.framework-state.json` (written at step 7
+or 11), so their hooks start firing the moment their plugin install updates
+past this version, with zero changes required in the target repo.
 
-Measured 2026-08-12 on CLI 2.1.220, in a project's `.claude/settings.json`:
+Proof, three ways. `tests/hooks_test.sh`: 56 cases (was 40), with a genuine
+red-then-green pair — the gate physically removed (`git stash` on the hook
+scripts only, keeping the new tests), the whole new "A18" section drops to
+46/10 failing (exactly the 10 cases whose entire point is the gate), restored,
+56/0. `tests/conformance_test.sh`: 42 cases (was 29) — the manifest parses,
+every command resolves to a real executable script, it matches
+`.claude/settings.json`'s hook set, and every declared hook actually calls the
+gate, that last one also shown red (one call site removed) then green. And a
+live run against a real installed plugin — throwaway marketplace pointing at
+the change, real `claude -p` sessions, CLI 2.1.220 (the version the original
+bug was measured on) — producing the acceptance-bar artifact itself: an opted-in
+scratch repo's `.claude/.enforcement-log` reading `C-01 [withheld —
+secret-class deny]` after a real blocked `.env` write, and the identical prompt
+against a never-opted-in repo creating the file with no `.claude/` directory
+ever appearing. Full transcript: `docs/acceptance/2026-08-12-a18-plugin-declared-hooks.md`.
 
-| Path form | Fires? | `$CLAUDE_PLUGIN_ROOT` |
-|---|---|---|
-| `${CLAUDE_PLUGIN_ROOT}/hooks/x.sh` | **no** | — |
-| absolute path | yes | — |
-| repo-relative (`hooks/x.sh`, `.claude/hooks/x.sh`) | yes | — |
-| plugin-declared `hooks/hooks.json` | yes | **resolves** |
+**Honest bounds.** f4d-kit's own repo now carries `.claude/.framework-state.json`
+too, so it does not go dark under the new gate — its hooks stay wired directly
+in its own `settings.json` as well (repo-relative, the one case that always
+worked), deliberately double-wired alongside the new global declaration (A6:
+safe), at the cost of a real deny in *this* repo's own sessions logging twice
+instead of once; not fixed, since removing either wiring path trades a real
+safety margin for a cosmetic telemetry count. `/project-audit`'s and
+`ENFORCEMENT.md`'s prose about plugin-version pinning was written for the old,
+never-working absolute-path design and is now slightly imprecise about what a
+"version mismatch" means under a globally-declared hook — not corrected here
+(out of the stated file scope), flagged for a follow-up. While building the
+live proof, `rule-zero.sh` was separately observed to derive its search root
+from session cwd rather than the target file's own path, which can
+false-positive when a tool call writes outside the current repo entirely —
+unrelated to A18, not fixed here.
 
-Isolated with a control: a literal command in the identical position fired,
-while a variant that wrote to a marker file *before* touching the variable
-produced no output at all — so the hook never executed.
+**Files:** `hooks/hooks.json` (new), `hooks/_parse.sh` (new `hook_opted_in`),
+`hooks/{guard,rule-zero,done-check,format,verify-record,session-context}.sh`,
+`skills/project-init/SKILL.md`, `skills/project-init/references/scaffold-spec.md`,
+`scripts/upgrade.py`, `tests/hooks_test.sh`, `tests/conformance_test.sh`,
+`templates/process/ENFORCEMENT.md`, `README.md`, `START_HERE.md`,
+`.claude/.framework-state.json` (new, this repo's own opt-in).
 
-The irony worth preserving: `guard-local.sh` (A11's "fallback floor") uses a
-relative path and is therefore **the only guard that has ever worked in a
-scaffolded repo**. The fallback works; the primary never did.
-
-**Build:** decide the delivery mechanism, then change what `/project-init`
-emits. Options, with what each costs — measured, not guessed:
-
-- **Absolute paths — ruled out.** The install path embeds the version
-  (`~/.claude/plugins/cache/f4d/f4d-kit/1.22.2`), so the next release points
-  every project at a directory that no longer exists. Silent death everywhere
-  at once — the exact A11 shape.
-- **Copy hooks into `.claude/hooks/`, reference relatively.** Works today
-  (guard-local.sh proves it). Cost: copies drift, so `upgrade.py` must manage a
-  new file class with the same FRAMEWORK/LOCAL/CONFLICT adjudication as rules.
-- **Plugin-declared `hooks/hooks.json` + a per-repo opt-in check inside each
-  hook** (recommended). The only form where the variable resolves; hook code
-  lives in the plugin so it updates with the plugin, and nothing is copied into
-  the target. Scope is global, so each hook must exit 0 on its first lines
-  unless the repo opts in — key it on `.claude/.framework-state.json`, which
-  `/project-init` and `upgrade.py` already write. Costs: a short-lived
-  subprocess per matched tool call in *every* repo (guard.sh matches
-  `Bash|Read|Edit|Write`), and a global blast radius that raises the bar on the
-  fail-loud tests.
-
-Whatever lands, prove it with a fired guard in a scaffolded repo — an
-`.enforcement-log` entry, not a passing unit test.
-
-**Files:** `skills/project-init/SKILL.md:191`, `hooks/hooks.json` (new),
-`scripts/upgrade.py`, `templates/scaffold/guard-local.sh`, `hooks/*.sh`
+**Follow-up (2026-08-13, PR #32 review).** The "unwritable log must never
+weaken the deny" fixture in `tests/hooks_test.sh` used `chmod 555` on `.claude`
+to simulate a telemetry write failure — root bypasses Unix permission bits
+entirely, so under a root CI runner (this repo's own included) the write went
+through anyway and the fixture reported green without ever exercising the
+property it claims to test. Reproduced without needing literal root: the
+identical write that 555 blocks for a normal user goes through fine once
+permission bits stop being the obstacle (`chmod 777` — the permission level
+root effectively sees, since root ignores permission bits altogether). A
+same-content regression harness run in scratch (log_deny no longer swallowing
+its own write failure, `deny()` gated on it via `&&`) confirmed the exact
+failure mode: the old fixture missed the regression at `chmod 777` (false
+green) while catching it correctly at real, non-root 555. Fixed by
+pre-creating `.enforcement-log` **as a directory** instead of chmod'ing the
+parent: opening a directory for writing fails with `EISDIR`, a type check
+`open()` makes on the call itself, independent of uid or permission bits —
+confirmed to still block the write at `chmod 777`, and the same regression
+harness confirmed the new fixture catches the regression there too. The
+fixture now also asserts the write itself failed (path still an empty
+directory) rather than inferring it from `guard.sh`'s exit code alone, since a
+successful write produces the identical exit 2. Targeted fix, `tests/hooks_test.sh`
+only; no application code changed.
 
 ---
 
-### A19 — `/project-init` never ships the gates or the secrets preflight · **high** · effort S
+### A19 — `/project-init` never ships the gates or the secrets preflight · ✅ built in 1.23.2
 
-**Why:** scaffold step 10 names `verify.yml`, `claude.yml`,
-`claude-code-review.yml`, `notion-sync.yml`. Cross-checked against
-`templates/github/`:
+**Correction to the table below** (kept for the record, since half of it was
+wrong): `verify.yml` really had no source — step 10 folded it into the
+`templates/github/` list built for `claude.yml`/`claude-code-review.yml`/
+`notion-sync.yml`, but `templates/github/` has no `verify.yml`; the repo has
+`templates/scaffold/verify.yml.tmpl` instead. But `gates.yml` and
+`preflight.yml` were **not** unnamed — step 11 ("Process layer",
+`SKILL.md:204-205`) already named both as destinations before this fix. What
+they actually lacked was a source citation: every sibling line in that same
+step (e.g. `docs/LIFECYCLE.md` "copied from
+`${CLAUDE_PLUGIN_ROOT}/templates/process/`") names where it comes from; the
+`gates.yml`/`preflight.yml` lines named only the `.github/workflows/`
+destination. Grep confirmed neither `templates/github/gates.yml` nor
+`templates/github/preflight.yml` appeared anywhere in `SKILL.md` pre-fix — so
+the original claim "the registry gates never install" overstated it: the step
+existed, the source was merely unstated, which is a real but different bug
+(an agent following the step literally has no textual anchor for *where* to
+copy from, even though a human skimming the repo would probably guess right).
+
+Original table, for context:
 
 | Workflow | Template exists | Named in step 10 |
 |---|---|---|
@@ -237,60 +338,97 @@ Whatever lands, prove it with a fired guard in a scaffolded repo — an
 | `gates.yml` | yes | **no** — the registry gates never install |
 | `preflight.yml` | yes | **no** — the secrets scan never installs |
 
-So every scaffolded repo gets Claude review and Notion sync but **not** the two
-workflows that enforce the registry. That is a live §7.6 violation in the
-product, and the likeliest reason the GHL-MCP audits kept finding
-"enforceable-but-prose". Note `templates/scaffold/verify.yml.tmpl` does exist —
-step 10 may simply be naming the wrong path.
+**Built:** step 10's `verify.yml` now cites its real source —
+`${CLAUDE_PLUGIN_ROOT}/templates/scaffold/verify.yml.tmpl`, rendered the same
+way `CLAUDE.md.tmpl` is (`{{DB_NAME}}`/`{{SETUP_CMDS}}`/`{{VERIFY}}` filled) —
+and is unconditional, unlike the org-profile-gated `claude.yml`/
+`claude-code-review.yml`/`notion-sync.yml` trio. Each of those three also now
+cites its own `${CLAUDE_PLUGIN_ROOT}/templates/github/<file>` source instead
+of sharing one clause — the shared-list-plus-trailing-source-clause shape is
+exactly what let `verify.yml` get mis-scoped into it in the first place.
+Step 11's `gates.yml`/`preflight.yml` lines now cite
+`${CLAUDE_PLUGIN_ROOT}/templates/github/gates.yml` and `.../preflight.yml`
+explicitly, matching step 10's style. Left in step 11 rather than moved to
+step 10: they are unconditional/always-on ("Process layer — always, regardless
+of project size"), unlike step 10's org-profile-gated trio — moving them would
+have blurred a real distinction and duplicated the "always" framing step 11
+already states once.
 
-**Build:** correct step 10 to copy `gates.yml` and `preflight.yml`, resolve the
-`verify.yml` reference against `templates/scaffold/verify.yml.tmpl`, and add a
-conformance assertion that every workflow step 10 names actually exists.
+`tests/conformance_test.sh` gained a 6-check section
+("SKILL.md names a real, correctly-scoped source for every
+`.github/workflows/` output") proving `SKILL.md` cites a real, existing,
+correct source path verbatim for `verify.yml`, `claude.yml`,
+`claude-code-review.yml`, `notion-sync.yml`, `gates.yml`, and `preflight.yml`
+— not merely that the source file exists in isolation, which the pre-existing
+"spec-mandated artifacts" check already did and which is exactly why it never
+caught this. Red-then-green, `bash tests/conformance_test.sh`: reverting only
+the `SKILL.md` fix reproduces all 6 new checks failing against the unmodified
+text (`pass=32 fail=6`); restoring the fix turns all 6 green (`pass=38
+fail=0`). Full suite via `bash scripts/verify.sh`: 153/153 assertions,
+`VERIFY PASSED`. Registry checked: `gates.yml`'s P-01/D-01/I-01/M-01 rows
+needed no change — this fix makes them ship reliably, it doesn't change what
+they enforce.
 
-**Files:** `skills/project-init/SKILL.md:195-197`, `tests/conformance_test.sh`
+**Follow-up (PR #31 review, 2026-08-13):** the six-check section above proved
+only that `src_rel` appeared *somewhere* in `SKILL.md`, never that it appeared
+*next to* its own `dest` (review permalink
+`https://github.com/f4d/f4d-dev-env-configurator/pull/31#discussion_r3771020078`).
+Swapping two workflows' source citations left all six checks green, because
+each check only did `src_rel not in skill` against the whole file — the exact
+mis-scoping this section exists to catch, reproduced through a hole in the
+test itself. Verified against the real, unmodified `tests/conformance_test.sh`
+(commit `11fe9a5`), not a scratch reproduction: with `gates.yml`'s and
+`preflight.yml`'s source clauses swapped in `SKILL.md` (their two lines,
+204-205), the pre-fix script still reported `pass=38 fail=0`. A second
+mutation swapping `claude.yml`'s and `notion-sync.yml`'s sources — both
+packed onto step 10's single shared line — reproduced the same false
+`pass=38 fail=0`, showing the gap held even within one line, not only across
+lines.
+
+**Fixed:** each check now walks `SKILL.md`'s backtick-quoted tokens in
+document order and requires the token immediately after `dest` to cite
+`src_rel`, rather than testing the file as a whole. A same-line-only version
+was tried first and rejected — `gates.yml`/`preflight.yml` sit on adjacent
+lines and the four step-10 workflows share one line, so anything looser than
+"the very next citation" still let same-line or adjacent-line swaps through.
+Red-then-green against both mutations: the fixed check reports `pass=36
+fail=2`, failing exactly the two swapped entries in each case (the other four
+untouched pairs stay green) — confirmed against real `tests/conformance_test.sh`
+runs, mutating and restoring `SKILL.md` in place, not a standalone reproduction.
+Restored, the fixed check reports `pass=38 fail=0` again. Full suite via
+`bash scripts/verify.sh`: 153/153 assertions, `VERIFY PASSED` — the fix only
+tightens which existing 6 assertions are logically checked, not how many run.
+
+**Files:** `skills/project-init/SKILL.md` (steps 10 and 11), `tests/conformance_test.sh`
 
 ---
 
-### A20 — the agents are scaffolded but not selectable, and never audited · **medium** · effort S
+### A21 — six scanners duplicate the SKIP tuple `_common.py` exists to hold · ✅ built in 1.22.4
 
-**Why:** three gaps found 2026-08-12:
+Consolidated all seven scanners onto `_common.SKIP_DIRS` (now a `frozenset` so
+a genuine local need extends it additively — e.g. `SKIP_DIRS | {"migrations",
+"db", "sql"}`, documented inline — instead of hand-copying it; five scanners
+carry such an extension). `check_fixtures.py`'s old substring dirpath match
+never pruned `dirnames` at all and walked every tree in full; it now prunes
+for real from the shared set. Every scanner skips dot-directories by default,
+matching `check_statelessness.py`/`check_guess_lists.py`'s prior behavior.
+Measured: a fixture of 3 real tests plus 80 phantom files dropped into a
+`.cache/` directory took `check_test_count`'s count from **3 → 83** before the
+fix and **3 → 3** after (the kit's own repo shows the same class of drift: 13
+real cases at the prior tip — the backlog's own baseline, independently
+reconfirmed). The new `tests/scanner_agreement_test.sh` — one trigger per
+scanner (ST-01/D-06/S-07/O-05/S-03/S-05/I-02/C-08) inside a single shared
+dot-directory — read **2 pass / 6 fail** against the pre-fix code (only
+statelessness and guess-lists, which already filtered dot-directories, came
+back green) and **8 pass / 0 fail** after; wired into `verify.sh`'s harness
+loop (147 → 155 assertions), which stays green throughout, and
+`check_guess_lists` (S-05, the gate this whole item is about) still reports
+zero findings against the kit's own repo post-refactor. REGISTRY.md checked —
+no row describes SKIP-directory behavior at the implementation level, so none
+needed updating. A17 (guess-list gate misses object-member lists, still open)
+touches `check_guess_lists.py` too and should rebase onto this once it lands.
 
-1. The interview's plan preview lists `AGENTS: contract-drift-checker,
-   schema-reviewer, integration-auditor` (`SKILL.md:133`) — **`verify-runner` is
-   missing**, though `LIFECYCLE.md:77` ("Anything"), `CADENCE.md:10` ("Per PR")
-   and `ship-it/SKILL.md:21` ("Always") all call it unconditional. The always-on
-   agent is the one absent from the plan the user approves.
-2. Nothing defines *which* agents are "selected". Step 7 says "only the selected
-   agents", but unlike modules — which have explicit `Q8 = yes → livesystem`
-   mappings — agents have no selection rule at all.
-3. `/project-audit` never checks agent presence. A repo can lose its agents and
-   no audit notices. The A11 shape again.
-
-**Files:** `skills/project-init/SKILL.md:133,190`, `skills/project-audit/SKILL.md`
-
----
-
-### A21 — six scanners duplicate the SKIP tuple `_common.py` exists to hold · **medium** · effort S
-
-**Why:** `scripts/_common.py` exists *because* `check_guess_lists.py` flagged
-`git rev-parse --show-toplevel` duplicated across four scripts — its docstring
-cites S-05, "extract one dependency-free leaf both sides import, never copy".
-Only `check_statelessness.py` imports `SKIP_DIRS`. Six others define their own
-near-identical `SKIP` tuple, and they disagree: only statelessness and
-guess-lists filter dot-directories; `check_test_count.py` skips just
-`.git`/`.venv`/`.next` by exact name; `check_fixtures.py` uses a substring match
-and excludes neither `build` nor `.next`.
-
-Measured consequence: 80 real files in a dot-prefixed directory took the kit's
-own counted test cases from 13 to **345**, because `check_test_count` walked in
-while other gates did not. The scanners do not agree on what the repo is.
-
-**Build:** consolidate onto `_common.SKIP_DIRS`, extending it where a scanner
-genuinely needs more (raw_sql's migrations/db/sql) via a documented extension
-rather than a copy. Make dot-directory handling consistent and deliberate. Add a
-test asserting every scanner agrees on one fixture tree.
-
-**Files:** `scripts/_common.py`, `scripts/check_{catch_empty,log_hygiene,pure_imports,raw_sql,guess_lists,test_count,fixtures}.py`
+**Files:** `scripts/_common.py`, `scripts/check_{catch_empty,log_hygiene,pure_imports,raw_sql,guess_lists,test_count,fixtures}.py`, `tests/scanner_agreement_test.sh`, `scripts/verify.sh`
 
 ---
 
@@ -599,6 +737,59 @@ that gets its first live-Actions exercise.
 
 ---
 
+### A20 — the agents are scaffolded but not selectable, and never audited · ✅ built in 1.23.0
+
+All three gaps closed together. **(1)** The plan preview's `AGENTS:` line
+(`SKILL.md:142`) now reads `verify-runner (always-on)  |  schema-reviewer,
+integration-auditor (selected: ...)` — the always-on agent is no longer absent
+from what the user approves, and the line now says out loud which agent is
+unconditional versus which were derived from an answer. **(2)** Selection is a
+rule now, not a vibe: `verify-runner` unconditional; `schema-reviewer` /
+`integration-auditor` / `contract-drift-checker` selected exactly when
+`database` / `data-integration` / `contracts` is in `decided_modules` — the
+pairing `ENFORCEMENT.md`'s honest-audit table already stated, now actually
+wired at Step 3.7 and spelled out in `module-catalog.md`'s new *Agent
+Catalog* section (no new interview question — reused the modules' own
+Q4/Q5/Q7 triggers). **(3)** `scripts/check_agents.py` (new, registered as
+**G-07**) derives the expected agent set from which `.claude/rules/*.md` a
+repo actually holds and flags any agent file that is missing or
+present-but-empty; `/project-audit`'s Enforcement layer runs it right next to
+the A11 guard-local check it mirrors in shape. `tests/agent_presence_test.sh`
+proves it — 25 cases, red-then-green for all three conditional agents, the
+unconditional floor, the empty-file edge case, an unheld-module negative case
+(a module NOT held must not require its agent), and two G-03 fail-loud paths
+(`.claude/rules` or `.claude/agents` present as a plain file, not a
+directory). Wired into `scripts/verify.sh`'s harness loop and gate-script
+loop; `bash tests/agent_presence_test.sh` and `python3
+scripts/check_agents.py` both run clean against this repo (SKIP — the kit
+itself holds no `.claude/rules/`, correctly: it is the plugin source, not a
+scaffolded consumer).
+
+**Follow-up (2026-08-13), found by actually running the merged result, not by
+inspection:** the claim directly above — that this repo correctly SKIPs — was
+true when written and became false the moment A18 merged. A18 gave this
+repo's own `.claude/settings.json` a `.claude/.framework-state.json` file too
+(self-opting it into its own plugin-declared hooks, an unrelated reason), and
+`check_agents.py`'s adoption check used that file's presence as its *only*
+signal. Running `bash scripts/verify.sh` against the merged state (not
+assumed clean) surfaced `check_agents FINDINGS`: `verify-runner.md` reported
+"missing" against a repo with no `.claude/agents/` directory to hold it — the
+kit auditing itself as if it were a consumer. Fixed by requiring **both**
+`.claude/.framework-state.json` and `.claude/rules/` present together before
+evaluating (neither alone is sufficient — see the script's own docstring for
+why each one false-positives on its own). `tests/agent_presence_test.sh`
+gained 4 cases for this shape specifically (30 → 34): the framework-state-only
+SKIP, its message, and a G-03 regression guard proving a corrupted
+`.claude/rules` (present as a plain file) still fail-louds rather than being
+swallowed into the new SKIP path. Full suite 234/234, `check_agents` clean
+against this repo.
+
+**Files:** `skills/project-init/SKILL.md`, `skills/project-init/references/module-catalog.md`,
+`scripts/check_agents.py`, `tests/agent_presence_test.sh`, `scripts/verify.sh`,
+`skills/project-audit/SKILL.md`, `templates/rules/REGISTRY.md` (G-07).
+
+---
+
 ## 3 — Registry debt (PROSE that should be mechanized)
 
 From `templates/rules/REGISTRY.md`. Each already carries a promote-when trigger.
@@ -677,9 +868,10 @@ all ("no terminal required" suggests a different execution model). If it cannot,
 the audit surface there is agent-driven inspection only, and its findings are
 weaker than a gate run — which must be stated in the report, not glossed.
 
-**Depends on:** A18. The hook-delivery mechanism has to be settled before the
-adapter boundary can be drawn, because A18's answer determines whether hooks
-travel with the plugin or with the project.
+**Depended on A18, now unblocked** (✅ built in 1.23.0, see §2). The
+hook-delivery question is settled: hooks travel with the plugin, globally
+(`hooks/hooks.json`), gated by a per-repo `.claude/.framework-state.json`
+opt-in — not with the project. Still needs O5 before it can move.
 
 ---
 
@@ -697,32 +889,31 @@ travel with the plugin or with the project.
 ## 6 — Priority order
 
 ```
-NOW      A18  scaffolded repos have a DEAD enforcement layer   <- CRITICAL, blocks O7
-         A19  /project-init never ships gates.yml/preflight.yml
-
-         B-01 Notion approval    (blocked on Ian)
+NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
-
-NEXT     A20  agent wiring (verify-runner absent, no selection rule, never audited)
-         A21  SKIP tuple dedup — the kit's own S-05 violation
-         A17  object-member guess-list gate
 
 SOON     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
               since it is an end-to-end /project-init exercise. Run it after them.
          S-04 promotion: eslint switch-exhaustiveness-check / mypy
 
-LATER    O7   multi-platform delivery (core + adapters) — needs O5, blocked on A18
+LATER    O7   multi-platform delivery (core + adapters) — needs O5 (A18 no longer blocks it)
          N-01 Workers migration — at 3rd repo or beta exit
 ```
 
-**Why A18 is first.** Every scaffolded repo currently has non-functional hooks.
-Until the delivery mechanism is settled, `/project-init` keeps producing repos
-whose enforcement layer looks present and does nothing — and O7's adapter
-boundary cannot be drawn without that answer.
+**A18 shipped in 1.23.0** (see §2) — scaffolded repos now get a live
+enforcement layer via plugin-declared `hooks/hooks.json`. **Why A19 is next.**
+Its own shape is the same class of gap A18 just closed: step 10 names
+workflows that either do not exist (`verify.yml`) or exist but were never
+copied (`gates.yml`, `preflight.yml`) — so a freshly scaffolded repo's *hooks*
+now work, but its registry gates and secrets preflight still never install.
+O4 stays after both for the same reason it did before: it is an end-to-end
+`/project-init` run, so it verifies A18 and A19 rather than duplicating them.
 
-**Why O4 moved.** It is an end-to-end `/project-init` run, so it verifies A18
-and A19 rather than duplicating them. Running it first would only certify the
-broken scaffolder.
+**O7, unblocked.** A18 was O7's stated dependency — "the hook-delivery
+mechanism has to be settled before the adapter boundary can be drawn." It is
+now: hooks travel with the plugin, globally, gated by a per-repo opt-in. O7
+still needs O5 (extracting the doctrine as a portable artifact) before it can
+move, and stays LATER.
 
 ---
 

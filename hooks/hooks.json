@@ -1,0 +1,65 @@
+{
+  "description": "f4d-kit enforcement hooks (A18). Declared here, at the plugin level, because ${CLAUDE_PLUGIN_ROOT} does NOT resolve inside a project's own .claude/settings.json — a hook command built from it there is silently skipped, never run, not even with an empty value (measured on CLI 2.1.220, docs/BACKLOG.md A18). Declaring here is global: every matching tool call in EVERY repo the user has Claude Code open in reaches these scripts, not only repos this kit scaffolded. Each script's own first move is hook_opted_in() in hooks/_parse.sh, which exits 0 immediately unless the current repo has .claude/.framework-state.json — written by /project-init and scripts/upgrade.py to every repo this kit has actually touched.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-context.sh\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/rule-zero.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/format.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/verify-record.sh\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/done-check.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -95,6 +95,91 @@ for f in "$KIT"/hooks/*.sh "$KIT"/templates/scaffold/guard-local.sh; do
   [ -x "$f" ] && ok "$(basename "$f") +x" || bad "$(basename "$f") not executable"
 done
 
+echo "hooks/hooks.json (A18 — the plugin-declared manifest) is well-formed and complete"
+HJ="$KIT/hooks/hooks.json"
+if [ -f "$HJ" ]; then
+  ok "hooks/hooks.json exists"
+  if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$HJ" 2>/dev/null; then
+    ok "hooks/hooks.json parses"
+    # Every command references a real, executable hooks/*.sh file — a typo'd
+    # or stale path here is invisible until a live session hits it, which is
+    # exactly the class of gap this file exists to catch mechanically instead.
+    hj_result=$(python3 - "$KIT" "$HJ" <<'PY'
+import json, os, re, sys
+kit, path = sys.argv[1], sys.argv[2]
+data = json.load(open(path))
+problems = []
+seen = set()
+for event, entries in (data.get("hooks") or {}).items():
+    for entry in entries or []:
+        for h in entry.get("hooks") or []:
+            cmd = h.get("command", "")
+            m = re.search(r'\$\{CLAUDE_PLUGIN_ROOT\}/(hooks/[A-Za-z0-9_.-]+\.sh)', cmd)
+            if not m:
+                problems.append(f"{event}: command does not reference \\${{CLAUDE_PLUGIN_ROOT}}/hooks/*.sh: {cmd!r}")
+                continue
+            rel = m.group(1)
+            seen.add(os.path.basename(rel))
+            full = os.path.join(kit, rel)
+            if not os.path.isfile(full):
+                problems.append(f"{event}: {rel} does not exist")
+            elif not os.access(full, os.X_OK):
+                problems.append(f"{event}: {rel} exists but is not executable")
+for p in problems:
+    print(f"PROBLEM\t{p}")
+print("SEEN\t" + ",".join(sorted(seen)))
+PY
+)
+    hj_problems=$(printf '%s\n' "$hj_result" | grep '^PROBLEM' | sed 's/^PROBLEM\t//')
+    hj_seen=$(printf '%s\n' "$hj_result" | grep '^SEEN' | sed 's/^SEEN\t//')
+    if [ -z "$hj_problems" ]; then
+      ok "every hooks.json command resolves to a real, executable hooks/*.sh file"
+    else
+      printf '%s\n' "$hj_problems" | while IFS= read -r p; do bad "$p"; done
+    fi
+
+    # Drift check: hooks.json (global, plugin-declared, A18) and this repo's own
+    # .claude/settings.json (project-local, repo-relative — a deliberately
+    # different case, see its _comment) should still name the SAME set of hook
+    # scripts. A hook added to one and not the other is exactly the kind of gap
+    # that looks fine until the missing side is the one that mattered.
+    sj_seen=$(python3 -c "
+import json
+d = json.load(open('$KIT/.claude/settings.json'))
+names = set()
+for entries in (d.get('hooks') or {}).values():
+    for entry in entries:
+        for h in entry.get('hooks') or []:
+            names.add(h['command'].rsplit('/', 1)[-1])
+print(','.join(sorted(names)))
+")
+    if [ "$hj_seen" = "$sj_seen" ]; then
+      ok "hooks.json and .claude/settings.json declare the same hook scripts ($hj_seen)"
+    else
+      bad "hooks.json ($hj_seen) and .claude/settings.json ($sj_seen) declare different hook scripts"
+    fi
+  else
+    bad "hooks/hooks.json does not parse as JSON"
+  fi
+else
+  bad "no hooks/hooks.json — A18's plugin-declared hooks cannot resolve \${CLAUDE_PLUGIN_ROOT} without it"
+fi
+
+echo "every hooks.json-declared hook opts itself in (hook_opted_in, A18)"
+# hooks.json is global — it matches on every repo the user has open, so every
+# script it points at MUST gate on hook_opted_in before doing anything else.
+# _parse.sh itself is a sourced library, never invoked directly by the harness,
+# so it is exempt; every other hooks/*.sh file is a real entry point.
+for f in "$KIT"/hooks/*.sh; do
+  base="$(basename "$f")"
+  [ "$base" = "_parse.sh" ] && continue
+  if grep -q 'hook_opted_in' "$f"; then
+    ok "$base calls hook_opted_in"
+  else
+    bad "$base never calls hook_opted_in — it would run unconditionally on every repo the user has open"
+  fi
+done
+
 echo "every registry section resolves as a module manifest (with the always-on core)"
 T="$(mktemp -d)"
 section_failures=$(python3 - "$KIT" "$T" <<'PY'
@@ -175,6 +260,98 @@ while IFS= read -r f; do
 done <<< "$refs
 $MANDATED"
 [ "$missing" -eq 0 ] && ok "every spec-mandated artifact exists ($total checked: scraped + curated)"
+
+echo
+echo "SKILL.md names a real, correctly-scoped source for every .github/workflows/ output (A19)"
+# The "spec-mandated artifacts" check above only proves each template FILE
+# exists somewhere under templates/ — it does not prove SKILL.md's own prose
+# points the scaffolder at the right one for a given destination. Concretely,
+# step 10 used to fold verify.yml into the templates/github/ list meant for
+# claude.yml/claude-code-review.yml/notion-sync.yml, but templates/github/ has
+# no verify.yml — the repo has templates/scaffold/verify.yml.tmpl instead. And
+# gates.yml/preflight.yml (step 11) named a destination with no source clause
+# at all — the "spec-mandated" check above passed anyway, because it only
+# scrapes/curates paths, never checks that SKILL.md's prose actually names
+# them next to the destination. Encode the correct destination -> source
+# mapping once here and prove SKILL.md's text cites it verbatim — not just
+# that the source happens to exist in isolation.
+#
+# Follow-up (PR #31 review): the first cut of this check only proved src_rel
+# appears SOMEWHERE in SKILL.md, never that it appears NEXT TO its own dest.
+# Swap two workflows' source clauses — even just two of the four packed onto
+# step 10's single line — and every check above still found its src_rel text
+# sitting under the *other* destination and passed, reintroducing exactly the
+# mis-scoping A19 fixed. Every dest/src pair here is written as adjacent
+# backtick-quoted tokens ("`<dest>` ... from `<src>`", nothing else
+# backtick-quoted in between, even mid-line) so walking the backtick-token
+# stream in document order and requiring the token right after `dest` to
+# cite `src` ties each source to its own destination instead of the file at
+# large.
+while IFS= read -r line; do
+  case "$line" in
+    PASS*) ok "${line#PASS }" ;;
+    FAIL*) bad "${line#FAIL }" ;;
+  esac
+done < <(python3 - "$KIT" <<'PY'
+import os, re, sys
+import yaml
+
+kit = sys.argv[1]
+skill = open(os.path.join(kit, "skills/project-init/SKILL.md")).read()
+
+# .github/workflows/<dest> -> (source path under $KIT that SKILL.md must cite
+# verbatim as the very next backtick-quoted token after dest, whether it is
+# a .tmpl that must also render to valid YAML)
+WORKFLOWS = [
+    ("verify.yml",             "templates/scaffold/verify.yml.tmpl",      True),
+    ("claude.yml",             "templates/github/claude.yml",             False),
+    ("claude-code-review.yml", "templates/github/claude-code-review.yml", False),
+    ("notion-sync.yml",        "templates/github/notion-sync.yml",        False),
+    ("gates.yml",              "templates/github/gates.yml",              False),
+    ("preflight.yml",          "templates/github/preflight.yml",          False),
+]
+
+BACKTICK = chr(96)  # built, not typed literally: a literal backtick here is
+                     # odd-numbered and this heredoc sits inside `<( ... )`,
+                     # where bash's parser tracks backtick pairing even
+                     # though the 'PY' delimiter makes the content literal
+TOKENS = re.findall(BACKTICK + r"([^" + BACKTICK + r"]*)" + BACKTICK, skill)
+
+for dest, src_rel, is_tmpl in WORKFLOWS:
+    src_abs = os.path.join(kit, src_rel)
+    problems = []
+    if not os.path.isfile(src_abs):
+        problems.append("source missing on disk")
+
+    # `dest` is cited either bare (step 10: `claude.yml`) or path-prefixed
+    # (step 11: `.github/workflows/gates.yml`) -- collect every exact-token
+    # occurrence, then require src_rel in the token immediately following
+    # at least one of them. A substring test on the raw text is not enough:
+    # dest is also the tail of every sibling source path (".../gates.yml"
+    # contains "gates.yml"), so it would count a neighbor's citation too.
+    dest_positions = [i for i, tok in enumerate(TOKENS)
+                       if tok == dest or tok == f".github/workflows/{dest}"]
+    if not dest_positions:
+        problems.append(f"SKILL.md never names {dest!r} as a copy destination")
+    else:
+        cited_next = [TOKENS[i + 1] for i in dest_positions if i + 1 < len(TOKENS)]
+        if not any(src_rel in tok for tok in cited_next):
+            found = cited_next[0] if cited_next else "(nothing)"
+            problems.append(f"SKILL.md names {dest!r} but cites {found!r} next, not {src_rel!r}")
+
+    if is_tmpl and os.path.isfile(src_abs):
+        try:
+            rendered = re.sub(r"\{\{[A-Z_]+\}\}", "dummy", open(src_abs).read())
+            yaml.safe_load(rendered)
+        except Exception as e:
+            problems.append(f"does not render to valid YAML: {e}")
+    label = f".github/workflows/{dest} <- {src_rel}"
+    if problems:
+        print("FAIL " + label + ": " + "; ".join(problems))
+    else:
+        print("PASS " + label)
+PY
+)
 
 echo
 echo "pass=$pass fail=$fail"
