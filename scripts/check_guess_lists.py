@@ -39,7 +39,22 @@ LIST_RE = re.compile(r"[\[\(]\s*((?:['\"][A-Za-z0-9_\- ]{2,40}['\"]\s*,\s*){2,}[
 # `{ id: 'x', meta: { a: 1 } }`) simply fails to match rather than being
 # mis-parsed — the same "deliberately conservative" trade-off LIST_RE already
 # makes for brackets it cannot follow.
-OBJARR_RE = re.compile(r"\[\s*((?:\{[^{}]*\}\s*,\s*){1,}\{[^{}]*\}\s*,?\s*)\]", re.DOTALL)
+#
+# Entries are commonly hand-annotated (`{ id: 'one' }, // first`), so every
+# gap that whitespace alone used to own — before the first entry, around each
+# comma, after the last entry — also tolerates `//` line comments and
+# `/* */` block comments, mixed in with whitespace in any order. Same
+# conservative bar as `[^{}]*` above: this is not a tokenizer, so a nested
+# block comment, a `*/` hiding inside a string literal, or a comment
+# containing a stray brace is not handled — any of those just fails to
+# match, the same "skipped, not mis-parsed" fallback the rest of this file
+# already relies on.
+GAP = r"(?:\s|//[^\n]*|/\*.*?\*/)*"
+OBJARR_RE = re.compile(
+    r"\[" + GAP + r"((?:\{[^{}]*\}" + GAP + r"," + GAP + r"){1,}"
+    r"\{[^{}]*\}" + GAP + r",?" + GAP + r")\]",
+    re.DOTALL,
+)
 ENTRY_RE = re.compile(r"\{[^{}]*\}")
 # Object-member values may carry dots (`custom_objects.communities`) that flat
 # list members never needed to — a namespaced identifier is the common shape

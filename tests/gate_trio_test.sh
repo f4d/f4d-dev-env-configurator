@@ -212,5 +212,51 @@ ln -s /nonexistent/target/does/not/exist.ts "$T11/src/broken.ts"
 ( cd "$T11" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: unreadable file (dangling symlink) does not crash and real duplicate still blocks" 1 $?
 rm -rf "$T11"
 
+# ---------- S-05 object-array entries separated by line comments (PR #35 review) ----------
+# OBJARR_RE's old entry separator was bare `\s*,\s*` — a `//` comment sitting
+# between one entry's comma and the next entry's `{` (`{ id: 'one' }, // first`)
+# is not whitespace, so the whole array silently failed to match and the
+# duplicate went unreported. Not a rare shape: hand-maintained lookup arrays
+# get trailing per-entry comments *because* they are exactly the
+# copy-pasted-across-files code S-05 exists to catch.
+T12="$(mktemp -d)"; ( cd "$T12" && git init -q ) && mkdir -p "$T12/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' }, // first\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' }, // second\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }, // third\n];\n" > "$T12/src/a.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' }, // dup-a\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' }, // dup-b\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }, // dup-c\n];\n" > "$T12/src/b.ts"
+( cd "$T12" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: object-array duplicate with per-entry line comments blocks" 1 $?
+rm "$T12/src/b.ts"
+( cd "$T12" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: same line-commented shape in only 1 file does not block" 0 $?
+rm -rf "$T12"
+
+# ---------- S-05 object-array entries separated by block comments (PR #35 review) ----------
+# Same gap, `/* ... */` form. One file below carries the comments and the
+# other has none at all, to prove the fingerprint rides on the entries'
+# values — never on the comment text, or on whether a comment is there.
+T13="$(mktemp -d)"; ( cd "$T13" && git init -q ) && mkdir -p "$T13/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' }, /* first */\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' }, /* second */\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' } /* third */\n];\n" > "$T13/src/a.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }\n];\n" > "$T13/src/b.ts"
+( cd "$T13" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: object-array duplicate with block comments on only one side still blocks" 1 $?
+rm -rf "$T13"
+
+# ---------- S-05 object-array with a comment leading the array (PR #35 review) ----------
+# The reviewer's finding named "per-entry or leading comments" — this is the
+# other shape: a comment sitting right after `[`, before the first entry,
+# which the old `\[\s*` could not skip over either.
+T14="$(mktemp -d)"; ( cd "$T14" && git init -q ) && mkdir -p "$T14/src"
+printf "const CUSTOM_OBJECTS = [\n  // GHL custom object catalog\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }\n];\n" > "$T14/src/a.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }\n];\n" > "$T14/src/b.ts"
+( cd "$T14" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: object-array duplicate with a comment leading the array still blocks" 1 $?
+rm -rf "$T14"
+
+# ---------- S-05 nested-object entries still fail closed (PR #35 review regression guard) ----------
+# The comment-tolerance fix only loosens the separator BETWEEN entries; it
+# must not loosen `[^{}]*` itself. An entry holding a nested object should
+# still simply fail to match, exactly as documented above OBJARR_RE — green
+# both before and after this fix, proving the conservative trade-off holds.
+T15="$(mktemp -d)"; ( cd "$T15" && git init -q ) && mkdir -p "$T15/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities', meta: { nested: true } },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps', meta: { nested: true } },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents', meta: { nested: true } }\n];\n" > "$T15/src/a.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities', meta: { nested: true } },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps', meta: { nested: true } },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents', meta: { nested: true } }\n];\n" > "$T15/src/b.ts"
+( cd "$T15" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: object-array entries holding a nested object still fail to match (fail-closed, unchanged)" 0 $?
+rm -rf "$T15"
+
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

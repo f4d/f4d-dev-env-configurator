@@ -195,6 +195,34 @@ GATE (`check_guess_lists`) / "done," matching the S-03/S-07 rows. Out of
 scope for this item (a registry-accuracy defect unrelated to the
 object-member heuristic); flagged separately rather than folded in here.
 
+**Addendum — PR #35 review (comment handling):** the automated reviewer found
+a real gap in the shipped `OBJARR_RE`: its entry separator was bare
+`\s*,\s*`, so any comment sitting between entries broke the match outright
+and the array was silently skipped rather than fingerprinted. Not an edge
+case — hand-maintained lookup arrays get exactly this kind of per-entry
+annotation (`{ id: 'one' }, // first`) for the same copy-paste-prone reason
+S-05 exists to catch them in the first place. Reproduced directly with the
+reviewer's own shape: pre-fix, `check_guess_lists.py` reported "No duplicate
+constant lists found" against a two-file duplicate where each entry carried
+a trailing `//` comment; post-fix, exit 1 with the correct fingerprint. Fix:
+a new `GAP` fragment (`//` line comments and `/* */` block comments mixed
+with whitespace) replaces the bare `\s*` in every gap a comma or bracket
+used to own outright — before the first entry, around each comma, after the
+last one — while `[^{}]*`'s brace-spanning refusal is untouched, preserving
+the conservative "skip rather than mis-parse" contract for the shapes still
+deliberately unhandled (nested block comments, a `*/` hiding inside a
+string, a comment holding a stray brace). Five new cases added to
+`tests/gate_trio_test.sh`, red-then-green against the reviewer's own shapes:
+per-entry line comments (plus the same shape in a single file, confirming no
+false positive), block comments (one file annotated, the other left plain,
+proving the fingerprint rides on entry values rather than comment text or
+its presence), a comment leading the array before the first entry (the
+second shape the reviewer's "per-entry or leading" phrasing named), and a
+green regression guard proving nested-object entries still fail to match,
+unchanged. `gate_trio_test.sh` 49 → 54, full suite (`verify.sh`) 165 → 170,
+all green throughout; `check_guess_lists.py` still reports clean against the
+kit's own source post-change.
+
 **Files:** `scripts/check_guess_lists.py`, `tests/gate_trio_test.sh`
 
 ---
