@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-13 · **Version shipped:** 1.23.8 · **Status:** all validation green (269/269 test assertions, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-13 · **Version shipped:** 1.23.8 · **Status:** all validation green (272/272 test assertions, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -24,7 +24,7 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **269** | hooks (64) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (49) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
+| Tests | **272** | hooks (67) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (49) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 45 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -431,7 +431,7 @@ touches `check_guess_lists.py` too and should rebase onto this once it lands.
 
 ---
 
-### A23 — this repo's own hook commands went dark the instant cwd left the repo root · **mid-session drift fixed in 1.23.8** · launch-from-subdirectory **still open** · effort S
+### A23 — this repo's own hook commands went dark the instant cwd left the repo root · **mid-session drift fixed in 1.23.8** · launch-from-subdirectory **closed via the A18 plugin dogfood opt-in (2026-08-13)** · effort S
 
 **Why:** a reviewer on the already-merged PR #29 pointed out that PR #29's fix
 (`${CLAUDE_PLUGIN_ROOT}` → repo-relative `hooks/x.sh`) traded one broken
@@ -505,10 +505,25 @@ every command actually shipped in `.claude/settings.json` is asserted
 anchored, generically, as a regression guard. All three met —
 `tests/hooks_test.sh` § *settings.json hook command resolution*.
 
-**Open (item 2):** no fix exists at the `.claude/settings.json` level. Next
-step, if picked up: either document "launch from the repo root" as a stated
-operational constraint with a startup self-check, or extend
-`fix/plugin-declared-hooks`' mechanism to this repo's own dogfood hooks.
+**Closed (item 2), 2026-08-13.** No fix exists at the `.claude/settings.json`
+level — but one already existed one layer up and had simply not been credited
+here: the A18 plugin-declared hooks (`hooks/hooks.json`) are registered by Claude
+Code at plugin-**install** time and fire for every session regardless of cwd,
+and this repo committed its own `.claude/.framework-state.json` in the same A18
+commit (`bf7bb15`), opting itself into that global path. `hook_opted_in()`
+resolves the repo root with a single `git rev-parse --show-toplevel` — cwd-
+independent — so `session-context.sh`, once fired, writes a correct
+`subdir`-tagged `.session-log` line for a session launched anywhere in the tree.
+The earlier "future work, not done here" note in item 2 above predated that
+merge and was stale. Locked against regression by `tests/hooks_test.sh` §
+*A23 item 2* — three assertions: the dogfood marker is present AND git-tracked;
+a subdir invocation of an opted-in repo writes `subdir`-tagged telemetry; the
+same invocation goes silent once the marker is removed (64 → 67 hook tests).
+**Honest bound:** closure holds whenever the plugin is installed — the normal
+dev state, and the installed state recorded in §0. A session in this repo with
+the plugin *not* installed still falls back to `.claude/settings.json`, which is
+only discovered on a root launch; that narrow residual is a documented
+operational constraint, not a live gap.
 
 **Follow-up finding (review on PR #39 itself, same day): anchoring alone was
 unquoted, and that is a distinct, worse bug.** A reviewer on PR #39
@@ -1183,16 +1198,16 @@ opt-in — not with the project. Still needs O5 before it can move.
 ```
 NOW      B-01 Notion approval    (blocked on Ian)
 
-NEXT     A23  session-context.sh still writes no telemetry for a session
-              launched from a subdirectory (mid-session drift fixed 1.23.8;
-              this residual needs the A18 mechanism or a documented constraint)
+NEXT     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
+              since it is an end-to-end /project-init exercise.
 
-SOON     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
-              since it is an end-to-end /project-init exercise. Run it after them.
-         S-04 promotion: eslint switch-exhaustiveness-check / mypy
+SOON     S-04 promotion: eslint switch-exhaustiveness-check / mypy
 
 LATER    O7   multi-platform delivery (core + adapters) — needs O5 (A18 no longer blocks it)
          N-01 Workers migration — at 3rd repo or beta exit
+
+DONE     A23  item 2 (launch-from-subdirectory telemetry) closed 2026-08-13 via
+              the A18 plugin dogfood opt-in + a regression lock; see §2 A23.
 ```
 
 **A18 shipped in 1.23.0** (see §2) — scaffolded repos now get a live
