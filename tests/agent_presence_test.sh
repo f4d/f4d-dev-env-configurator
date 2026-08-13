@@ -8,15 +8,31 @@ pass=0; fail=0
 check() { if [ "$2" -eq "$3" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1 (expected exit $2, got $3)"; fi }
 
 T="$(mktemp -d)"; ( cd "$T" && git init -q )
-RULES="$T/.claude/rules"; AGENTS="$T/.claude/agents"
-reset() { rm -rf "$RULES" "$AGENTS"; mkdir -p "$RULES" "$AGENTS"; }
+RULES="$T/.claude/rules"; AGENTS="$T/.claude/agents"; STATE="$T/.claude/.framework-state.json"
+# reset() puts the repo in "adopted" state (framework-state.json present) by
+# default, since that is what most cases below want to exercise; the two
+# adoption-signal cases explicitly rm -f "$STATE" after calling it.
+reset() { rm -rf "$RULES" "$AGENTS"; mkdir -p "$RULES" "$AGENTS"; printf '{}' > "$STATE"; }
 run() { ( cd "$T" && python3 "$KIT/scripts/check_agents.py" >/dev/null 2>&1 ); }
 out() { ( cd "$T" && python3 "$KIT/scripts/check_agents.py" 2>&1 ); }
 
-# SKIP: repo with no .claude/rules/ at all has not adopted f4d-kit — not a violation.
-rm -rf "$RULES" "$AGENTS"
-run; check "no .claude/rules/ at all skips cleanly" 0 $?
+# SKIP: repo with none of the kit's state at all — no .framework-state.json,
+# no .claude/rules/ — has not adopted f4d-kit. Not a violation.
+rm -rf "$RULES" "$AGENTS"; rm -f "$STATE"
+run; check "no framework-state.json (or rules/) at all skips cleanly" 0 $?
 out | grep -q "SKIP"; check "skip message says SKIP" 0 $?
+
+# RED-then-green regression (review r3771422153, PR #34): a `.claude/rules/`
+# directory's mere existence is not the adoption signal — Claude Code's own
+# native rules feature can populate one on a repo that never touched f4d-kit.
+# Before the fix this fell through to a full evaluation and reported the
+# unconditional agent as falsely missing; the fix keys adoption off
+# .claude/.framework-state.json instead, which this repo never wrote.
+reset
+rm -f "$STATE"
+printf 'Prefer tabs over spaces in this repo.\n' > "$RULES/generic-house-style.md"
+run; check "rules/ populated but no framework-state.json still skips" 0 $?
+o=$(out); printf '%s' "$o" | grep -q "SKIP"; check "skip message says SKIP even though rules/ exists" 0 $?
 
 # GREEN: kit adopted, no conditional modules held, verify-runner present — the
 # unconditional floor, nothing more required.
@@ -89,6 +105,23 @@ o=$(out); printf '%s' "$o" | grep -q "schema-reviewer.md: empty"; check "message
 # GREEN: non-empty content clears it.
 printf 'agent' > "$AGENTS/schema-reviewer.md"
 run; check "green: non-empty content clears the empty-file violation" 0 $?
+
+# RED-then-green regression (review r3771422162, PR #34): a directory
+# standing in for an agent file must not read as present. os.listdir() lists
+# a directory's name exactly like a file's, and os.path.getsize() on a
+# directory is normally nonzero — before the fix this passed both the
+# presence and empty-file checks and printed OK while there was no usable
+# agent definition at all.
+reset
+printf 'x' > "$RULES/core.md"
+mkdir -p "$AGENTS/verify-runner.md"
+run; check "red: a directory standing in for verify-runner.md blocks" 1 $?
+o=$(out); printf '%s' "$o" | grep -q "verify-runner.md: a directory, not a file"; check "message distinguishes directory from empty/missing" 0 $?
+
+# GREEN: replacing the directory with a real file clears it.
+rm -rf "$AGENTS/verify-runner.md"
+printf 'agent' > "$AGENTS/verify-runner.md"
+run; check "green: real file in place of the directory clears the violation" 0 $?
 
 # FAIL-LOUD (G-03): .claude/rules exists but is a file, not a directory —
 # cannot evaluate what modules are held, so this must block, not skip.

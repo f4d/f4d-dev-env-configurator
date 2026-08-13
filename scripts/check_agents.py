@@ -24,11 +24,14 @@ hooks.
 
 NOT a CI gate, for the same reason check_companions.py is not one: whether an
 agent file belongs here is a function of whether this repo has adopted
-f4d-kit at all (`.claude/rules/` present). A repo that never adopted the kit
-should not fail a check that assumes it did — that would fire on every
+f4d-kit at all (`.claude/.framework-state.json` present — NOT `.claude/rules/`,
+which Claude Code's own native rules feature can populate on a repo that
+never touched f4d-kit; keying off it produced false missing-agent findings
+there, review comment r3771422153 on PR #34). A repo that never adopted the
+kit should not fail a check that assumes it did — that would fire on every
 unrelated repo's CI, and a gate that fires wrongly gets disabled (A8). Exit 0
-with SKIP when `.claude/rules/` is absent; exit 1 only when the kit is
-adopted here and a required agent file is genuinely missing.
+with SKIP when `.claude/.framework-state.json` is absent; exit 1 only when
+the kit is adopted here and a required agent file is genuinely missing.
 """
 import os
 import sys
@@ -38,6 +41,10 @@ from _common import repo_root  # noqa: E402
 
 RULES_DIR = os.path.join(".claude", "rules")
 AGENTS_DIR = os.path.join(".claude", "agents")
+# Same relative path check_companions.py's STATE constant already uses as the
+# kit's adoption marker — written only by /project-init, unlike .claude/rules/
+# which Claude Code's own native rules feature can populate independently.
+FRAMEWORK_STATE = os.path.join(".claude", ".framework-state.json")
 
 # .claude/rules/<module file> -> .claude/agents/<agent file> it implies.
 # Mirrors templates/process/ENFORCEMENT.md's honest-audit table.
@@ -76,18 +83,27 @@ def main():
     base = repo_root()
     rules_dir = os.path.join(base, RULES_DIR)
     agents_dir = os.path.join(base, AGENTS_DIR)
+    state_path = os.path.join(base, FRAMEWORK_STATE)
 
-    # G-03: "absent" (SKIP — legitimately not an f4d-kit repo) and "present but
-    # not a directory" (corrupted — cannot evaluate) are different states and
-    # must not collapse into the same lenient branch. Only true absence skips.
-    if os.path.exists(rules_dir) and not os.path.isdir(rules_dir):
-        die(f"{RULES_DIR} exists but is not a directory — cannot evaluate.")
-    if not os.path.isdir(rules_dir):
-        print(f"check_agents: SKIP — no {RULES_DIR}/ here; this repo has not adopted f4d-kit.")
+    # Adoption is signalled by the kit's own state file, not by whether
+    # .claude/rules/ exists (review r3771422153 on PR #34): Claude Code's
+    # native rules feature lets any repo hold a .claude/rules/ full of
+    # project-local, non-kit content, which the old check mistook for "kit
+    # adopted" and then reported real agent files as falsely missing.
+    # .claude/.framework-state.json is written only by /project-init, and is
+    # the same marker check_companions.py's STATE constant already uses.
+    if not os.path.exists(state_path):
+        print(f"check_agents: SKIP — no {FRAMEWORK_STATE} here; this repo has not adopted f4d-kit.")
         return 0
 
+    # G-03: "absent" (fine — zero rules modules held, so only the
+    # unconditional floor applies) and "present but not a directory"
+    # (corrupted — cannot evaluate) are different states and must not
+    # collapse into the same lenient branch.
+    if os.path.exists(rules_dir) and not os.path.isdir(rules_dir):
+        die(f"{RULES_DIR} exists but is not a directory — cannot evaluate.")
     try:
-        held_rules = set(os.listdir(rules_dir))
+        held_rules = set(os.listdir(rules_dir)) if os.path.isdir(rules_dir) else set()
     except OSError as exc:
         die(f"cannot list {RULES_DIR} ({exc})")
 
@@ -100,21 +116,40 @@ def main():
     except OSError as exc:
         die(f"cannot list {AGENTS_DIR} ({exc})")
 
+    candidates = expected & present
+
+    # os.listdir() reports a name whether it belongs to a file, a directory,
+    # or anything else, and os.path.getsize() on a directory is normally
+    # nonzero — so a stray `mkdir .claude/agents/verify-runner.md` passed
+    # both the presence and empty-file checks below and printed OK while
+    # Claude still had no usable agent definition (review r3771422162 on PR
+    # #34). Check the type explicitly, before size, and keep it a distinct
+    # finding from "empty": both are present-but-useless, but they are
+    # different bugs with different fixes (rmdir vs. restoring content).
+    not_file = {name for name in candidates
+                if not os.path.isfile(os.path.join(agents_dir, name))}
+
     # A file that exists but is empty (a bad merge, a truncated write, an
     # accidental `touch`) is functionally as missing as an absent one — an
     # agent definition with no body has no instructions to run.
-    empty = {name for name in expected & present
+    empty = {name for name in candidates - not_file
              if os.path.getsize(os.path.join(agents_dir, name)) == 0}
-    missing = sorted((expected - present) | empty)
+    missing = sorted((expected - present) | not_file | empty)
 
     if not missing:
         print(f"check_agents: OK — {len(expected)} expected agent(s) present: "
               f"{', '.join(sorted(expected))} (A20).")
         return 0
 
-    print(f"A20 VIOLATIONS — expected agent file(s) missing or empty ({len(missing)}):")
+    print(f"A20 VIOLATIONS — expected agent file(s) missing, empty, or not a file ({len(missing)}):")
     for name in missing:
-        state = "empty" if name in empty else "missing"
+        if name in not_file:
+            path = os.path.join(agents_dir, name)
+            state = "a directory, not a file" if os.path.isdir(path) else "present but not a regular file"
+        elif name in empty:
+            state = "empty"
+        else:
+            state = "missing"
         print(f"  .claude/agents/{name}: {state} — {reason(name)}")
     print()
     print("An agent file can disappear by deletion, a bad .gitignore entry, or a")
