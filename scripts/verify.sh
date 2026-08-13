@@ -28,7 +28,16 @@ section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 section "harnesses"
 total=0
 for t in hooks render_registry gate_trio statelessness conformance companions scanner_agreement agent_presence notion_sync; do
-  line=$(bash "tests/${t}_test.sh" 2>&1 | tail -1)
+  # Harnesses are self-contained fixtures — gate_trio_test.sh in particular
+  # asserts BOTH check_commits/check_test_count behaviors, "BASE_REF set" and
+  # "BASE_REF unset", inside its own disposable repos. CI never leaks BASE_REF
+  # into them because the harnesses job and the gates job run on separate
+  # runners. verify.sh runs everything in one process, so once BASE_REF is
+  # honored below, a caller who exports it (exactly what this script now asks
+  # people to do) would otherwise bleed it into these subshells and flip their
+  # "unset" assertions — a self-inflicted false FAILED unrelated to the PR
+  # being checked. Unset it explicitly for this loop only.
+  line=$(env -u BASE_REF bash "tests/${t}_test.sh" 2>&1 | tail -1)
   n=$(printf '%s' "$line" | grep -o 'pass=[0-9]*' | cut -d= -f2)
   f=$(printf '%s' "$line" | grep -o 'fail=[0-9]*' | cut -d= -f2)
   # A harness that printed no counts did not run to completion — that is a
@@ -57,11 +66,29 @@ for g in check_statelessness check_guess_lists check_catch_empty check_log_hygie
 done
 
 # check_commits and check_test_count need BASE_REF and are meaningless without a
-# base to compare against. CI supplies it; locally they are skipped, and the skip
-# is printed rather than silent.
-section "skipped locally (need BASE_REF — CI runs these)"
-printf '  %-24s %s\n' "check_commits" "C-06"
-printf '  %-24s %s\n' "check_test_count" "C-08"
+# base to compare against. gates.yml always sets it (BASE_REF=origin/<base
+# branch>) and runs both unconditionally against it — verify.sh must do the
+# same whenever a caller (CI, or a person who exports BASE_REF locally) has it
+# in the environment, or a local "VERIFY PASSED" does not mean what CI's
+# PASSED means (a branch that deletes tests or has a malformed commit subject
+# could report clean here and fail in gates.yml on the same commit). Only when
+# BASE_REF is genuinely absent — no base to diff against — do we skip, and the
+# skip is printed rather than silent.
+if [ -n "${BASE_REF:-}" ]; then
+  section "base-ref gates (BASE_REF=$BASE_REF)"
+  for g in check_commits check_test_count; do
+    if python3 "scripts/${g}.py" >/dev/null 2>&1; then
+      printf '  %-24s clean\n' "$g"
+    else
+      printf '  %-24s FINDINGS\n' "$g"
+      fail=1
+    fi
+  done
+else
+  section "skipped locally (need BASE_REF — CI runs these)"
+  printf '  %-24s %s\n' "check_commits" "C-06"
+  printf '  %-24s %s\n' "check_test_count" "C-08"
+fi
 
 section "result"
 if [ "$fail" -eq 0 ]; then

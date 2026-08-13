@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-13 · **Version shipped:** 1.23.6 · **Status:** all validation green (262/262 test assertions, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-13 · **Version shipped:** 1.23.7 · **Status:** all validation green (262/262 test assertions, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -477,6 +477,54 @@ matches the recorded framework state. 4 harness cases red-green.
 `REGISTRY.md` § *Reading this file* now states permanence (supersede with a new
 ID, never renumber); `render_registry.py --validate` and `upgrade.py` fail on
 any reference to an ID that does not exist.
+
+---
+
+### A25 — `verify.sh` printed "skipped, need BASE_REF" even when BASE_REF was set · ✅ built in 1.23.7
+
+**Why:** reviewer finding on the already-merged PR that introduced
+`scripts/verify.sh` (the kit's single advertised verify command, the thing
+`done-check.sh`'s whole enforcement model depends on being trustworthy). The
+"skipped locally (need BASE_REF — CI runs these)" section for `check_commits`
+(C-06) and `check_test_count` (C-08) printed **unconditionally** — it never
+checked whether the caller (CI, or a person who exported `BASE_REF` locally,
+exactly as the reviewer described) actually had it set. Proven red in a
+scratch clone: a branch with a non-conventional commit subject and a separate
+branch that deletes two tests (15 → 13, no `test-removal-ok:` reason) both
+reported `VERIFY PASSED` with `BASE_REF` set to a real, resolvable ref — the
+identical commits fail `gates.yml`'s PR job. Full protocol with real
+command/output pairs: `docs/acceptance/2026-08-13-a25-verify-sh-base-ref-gates.md`.
+
+**Build:** gate the section on `[ -n "${BASE_REF:-}" ]`. When true, run
+`check_commits.py`/`check_test_count.py` for real, via the same invocation
+`gates.yml` uses (`python3 scripts/check_*.py`, no arguments, from repo root,
+inheriting `BASE_REF` from the environment) — report their actual clean/
+FINDINGS, same as every other gate script in this file. Only print the skip
+message when `BASE_REF` is genuinely absent or empty. An unresolvable
+`BASE_REF` (set but pointing nowhere) was deliberately left to the existing
+fail-loud behavior already built into both check scripts (G-03) rather than
+special-cased in `verify.sh` — confirmed it reports `VERIFY FAILED`, not a
+silent pass.
+
+A second bug surfaced by the red-then-green protocol itself, fixed in the
+same change: `verify.sh` runs its own six test harnesses and the new
+BASE_REF-gated section in one process, and `tests/gate_trio_test.sh` asserts
+both "BASE_REF set" and "BASE_REF unset" behavior internally without managing
+the variable itself — so a caller's exported `BASE_REF` leaked into the
+harness loop and flipped one of its "unset" assertions, a false `VERIFY
+FAILED` unrelated to whatever branch was actually being checked. CI never
+hits this (the harnesses job and the gates job run on separate runners); a
+single local process does. Fixed by running the harnesses loop under `env -u
+BASE_REF`.
+
+No `tests/*.sh` harness assertion was added for the primary fix: every
+existing harness is itself one of the six things `verify.sh`'s own loop runs,
+and `verify.sh` always operates on its own containing repo (`KIT="$(cd
+"$(dirname "$0")/.." && pwd)"`) — a new harness that invoked `verify.sh` would
+make it call itself recursively. Same bound as A6: the protocol document is
+the test, re-runnable in minutes against a disposable clone.
+
+**Files:** `scripts/verify.sh`, `docs/acceptance/2026-08-13-a25-verify-sh-base-ref-gates.md`
 
 ---
 

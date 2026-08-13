@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.23.7 — A25: `verify.sh` now actually runs the checks it claimed to skip
+Reviewer finding on an already-merged PR: `scripts/verify.sh` — the kit's one
+advertised local verify command — printed "skipped locally (need BASE_REF —
+CI runs these)" for `check_commits` (C-06) and `check_test_count` (C-08)
+**unconditionally**, even when the caller (CI, or a person who exported
+`BASE_REF` locally, exactly as intended) actually had it set. A branch with a
+non-conventional commit subject, or one that deletes tests with no stated
+reason, could report `VERIFY PASSED` locally while `gates.yml` correctly
+failed the identical commit in CI — the two "verify" mechanisms diverged, and
+the one this kit tells people to trust locally was the weaker one. If you run
+`verify.sh` with `BASE_REF` set (matching CI's `BASE_REF=origin/<base
+branch>`), it now runs both checks for real, the same invocation `gates.yml`
+uses, and reports their actual pass/fail. No `BASE_REF` still skips, and the
+skip is still printed, unchanged. Red-then-green proof, including a second
+bug the proof surfaced (a caller's `BASE_REF` was leaking into the test
+harnesses' own internal BASE_REF-set/unset assertions, now isolated), is in
+`docs/acceptance/2026-08-13-a25-verify-sh-base-ref-gates.md`.
+
 ## 1.23.6 — A24: pin PyYAML instead of merely naming it
 Reviewer finding on the already-merged PR #26, which added `pip install pyyaml` to `gates.yml` to fix a runner-image divergence against `main-verify.yml`: naming the dependency was right but incomplete. An unpinned `pip install pyyaml` still lets pip resolve whatever release is newest at install time, so a new PyYAML landing on PyPI between a PR's `gates.yml` run and the later `main-verify.yml` run on the merge commit could still change the conformance result on an otherwise-unchanged commit — the exact "green for a reason nothing in this repo controls" shape the original fix set out to remove, one layer down. Both workflows now pin the identical `pip install pyyaml==6.0.3`, plus the matching local-dev preflight message in `tests/conformance_test.sh`. No new lock/constraints file: verified this is the repo's only Python dependency (no `requirements.txt`/`constraints.txt`/`pyproject.toml` anywhere in the tree; every `scripts/*.py` imports only stdlib + `yaml`), so one would be disproportionate debt for a single package — two identical pinned lines, each with its own explanatory comment, instead. `conformance_test.sh` gained a same-pin assertion so a future edit that bumps one workflow's pin without the other fails CI instead of silently reopening this; red-then-green proven on that guard specifically (147 → 148 assertions). Proof for the pin itself is necessarily determinism, not red-then-green (a future PyPI release can't be forced to exist for a test): two independent `pip install pyyaml==6.0.3` runs in clean virtualenvs both resolved to `6.0.3`, and both workflow files grep to the byte-identical pin string.
 
