@@ -4,7 +4,11 @@ name: claude-code-review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    # ready_for_review matters as much as opened/synchronize: a PR opened as
+    # a draft is skipped by the job's `if:` below, and marking it ready
+    # emits ready_for_review, not synchronize. Without it here, a draft PR
+    # that goes ready with no further commit never gets reviewed at all.
+    types: [opened, synchronize, ready_for_review]
     paths:
       # Data layer — unsafe migrations and missing indexes are costly and quiet
       - '**/migrations/**'
