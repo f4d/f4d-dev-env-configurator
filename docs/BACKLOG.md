@@ -155,18 +155,75 @@ load. All doctrine sites updated with the evidence.
 
 ---
 
-### A17 — guess-list gate misses object-member lists · **low** · effort S
+### A17 — guess-list gate misses object-member lists · ✅ built in 1.23.1
 
-**Why:** re-audit measurement (2026-08-11) — `check_guess_lists` matches
-string-literal collections only; GHL-MCP's six-file `CUSTOM_OBJECTS`
-replication (object members with repeated key values) passes clean. The
-highest-value S-05 instance found by agents is invisible to the S-05 gate.
+Extended `check_guess_lists.py` with a second, name-agnostic detection path
+for array-of-object literals: a per-entry property qualifies as an
+identifying key purely on shape — present on every entry, string-valued, and
+distinct across entries within its own array — never by matching `objectKey`
+or any other name literally. Its sorted values then fingerprint exactly like
+a flat list would, reusing the same 2+-files duplicate threshold (now a
+shared `MIN_MEMBERS` constant rather than the same magic number twice) and
+the same CLI-argument exclusion. Red-green measured against a fixture
+mirroring the real GHL-MCP `CUSTOM_OBJECTS` shape (two files: a
+`label`/`objectKey` variant matching `mcpServer.ts`/`mainReportQueue.ts`, and
+a `label`/`objectId`/`objectKey` variant matching `mainReportFixed.ts`, values
+taken from the real repo): pre-fix, `check_guess_lists.py` reported "No
+duplicate constant lists found" against it (red); post-fix, it blocks and
+names the `objectKey` fingerprint duplicated across both files (green) — and
+correctly does **not** unify the two files' `label` values, which drift in
+the real repo ("Building" vs "Buildings - Roof Records"), proving exact-match
+fingerprinting rather than fuzzy overlap. Fail-loud cases proven: an
+object-array with no discernible stable key (every column repeats) reports
+clean rather than crashing or false-flagging; a file that cannot be read
+(dangling symlink) is skipped without masking a real duplicate found
+elsewhere in the same walk, matching the pre-existing per-file
+read-exception path. Regression check: `bash scripts/verify.sh` run
+immediately before and after the `check_guess_lists.py` code change (before
+any new test cases were added) produced byte-identical output at 159/159
+assertions — the code change alone changes no existing behavior. Six new
+cases then added to `tests/gate_trio_test.sh` for the new path (43 → 49,
+full suite 159 → 165), all green; the kit's own source still reports clean
+post-change, so the extension adds no new false positives against a real
+repo.
+REGISTRY.md's S-05 row checked: the rule text ("no two guess lists") is
+already generic and needed no change. Its Today/Promote-when columns read
+PROSE / "duplicate-constant-list scan in CI," but `check_guess_lists.py` has
+in fact been wired into `templates/github/gates.yml` and this repo's own
+`.github/workflows/gates.yml` all along — that pair is stale and should read
+GATE (`check_guess_lists`) / "done," matching the S-03/S-07 rows. Out of
+scope for this item (a registry-accuracy defect unrelated to the
+object-member heuristic); flagged separately rather than folded in here.
 
-**Build:** extend the heuristic to object-array literals — fingerprint on the
-sorted values of a recurring key (e.g. `objectKey`) across 2+ files. Red-green
-against the GHL-MCP pattern.
+**Addendum — PR #35 review (comment handling):** the automated reviewer found
+a real gap in the shipped `OBJARR_RE`: its entry separator was bare
+`\s*,\s*`, so any comment sitting between entries broke the match outright
+and the array was silently skipped rather than fingerprinted. Not an edge
+case — hand-maintained lookup arrays get exactly this kind of per-entry
+annotation (`{ id: 'one' }, // first`) for the same copy-paste-prone reason
+S-05 exists to catch them in the first place. Reproduced directly with the
+reviewer's own shape: pre-fix, `check_guess_lists.py` reported "No duplicate
+constant lists found" against a two-file duplicate where each entry carried
+a trailing `//` comment; post-fix, exit 1 with the correct fingerprint. Fix:
+a new `GAP` fragment (`//` line comments and `/* */` block comments mixed
+with whitespace) replaces the bare `\s*` in every gap a comma or bracket
+used to own outright — before the first entry, around each comma, after the
+last one — while `[^{}]*`'s brace-spanning refusal is untouched, preserving
+the conservative "skip rather than mis-parse" contract for the shapes still
+deliberately unhandled (nested block comments, a `*/` hiding inside a
+string, a comment holding a stray brace). Five new cases added to
+`tests/gate_trio_test.sh`, red-then-green against the reviewer's own shapes:
+per-entry line comments (plus the same shape in a single file, confirming no
+false positive), block comments (one file annotated, the other left plain,
+proving the fingerprint rides on entry values rather than comment text or
+its presence), a comment leading the array before the first entry (the
+second shape the reviewer's "per-entry or leading" phrasing named), and a
+green regression guard proving nested-object entries still fail to match,
+unchanged. `gate_trio_test.sh` 49 → 54, full suite (`verify.sh`) 165 → 170,
+all green throughout; `check_guess_lists.py` still reports clean against the
+kit's own source post-change.
 
-**Files:** `scripts/check_guess_lists.py`
+**Files:** `scripts/check_guess_lists.py`, `tests/gate_trio_test.sh`
 
 ---
 
@@ -451,7 +508,6 @@ NOW      A18  scaffolded repos have a DEAD enforcement layer   <- CRITICAL, bloc
          B-02 Brand Torus path   (blocked on Ian)
 
 NEXT     A20  agent wiring (verify-runner absent, no selection rule, never audited)
-         A17  object-member guess-list gate
 
 SOON     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
               since it is an end-to-end /project-init exercise. Run it after them.
