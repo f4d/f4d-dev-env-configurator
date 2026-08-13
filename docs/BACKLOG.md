@@ -342,6 +342,39 @@ any reference to an ID that does not exist.
 
 ---
 
+### A22 — `pip install pyyaml` was named but not pinned, so CI could still diverge · ✅ built in 1.23.2
+
+**Why:** a reviewer flagged the merged PR #26 fix as incomplete. Naming PyYAML
+as an explicit dependency stopped the *runner-image* divergence (`gates.yml`
+vs `main-verify.yml` disagreeing on what came preinstalled), but an unpinned
+`pip install pyyaml` still lets pip resolve whatever release is newest **at
+run time** — a new PyYAML landing on PyPI between the PR's `gates.yml` run and
+the later `main-verify.yml` run on the merge commit reproduces the identical
+"green for a reason nothing in this repo controls" problem one layer down, and
+could make an unchanged commit's conformance result depend on when it happened
+to be re-run.
+
+**Build:** both workflows now pin the identical version —
+`pip install pyyaml==6.0.3` in both `gates.yml` and `main-verify.yml` — plus
+the matching local-dev preflight message in `tests/conformance_test.sh`. No
+shared lock/constraints file: checked first that this repo has no other
+Python dependency (no `requirements.txt`/`constraints.txt`/`pyproject.toml`
+anywhere in the tree, and every `scripts/*.py` imports only stdlib + `yaml`),
+so a lock file for one package would be its own S-05-shaped debt — two
+identical pinned lines, each already carrying its own explanatory comment
+about *why* it's pinned, is proportionate instead.
+
+**Proof, not red-then-green:** a future PyPI release can't be forced to exist
+for a test, so the fix is proven the other way — two independent
+`pip install pyyaml==6.0.3` runs in clean virtualenvs both resolved to
+`6.0.3`, and both workflow files grep to the byte-identical pin string
+`pip install pyyaml==6.0.3`. That determinism is what "pinned" means to prove
+here; PR body has the exact commands.
+
+**Files:** `.github/workflows/gates.yml`, `.github/workflows/main-verify.yml`, `tests/conformance_test.sh`
+
+---
+
 ## 3 — Registry debt (PROSE that should be mechanized)
 
 From `templates/rules/REGISTRY.md`. Each already carries a promote-when trigger.

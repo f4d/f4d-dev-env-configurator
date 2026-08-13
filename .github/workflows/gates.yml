@@ -40,7 +40,20 @@ jobs:
         # job was green on the same commit. Naming the dependency removes the
         # difference; an implicit dependency is one the next runner image can
         # delete without telling anyone.
-        run: pip install pyyaml
+        #
+        # Pinned, not bare: naming it was not the same as controlling it. A
+        # bare `pip install pyyaml` still lets pip resolve whatever release is
+        # newest at run time, so a new PyYAML landing on PyPI between this run
+        # (on the PR) and main-verify.yml's later run (on the merge commit)
+        # reproduces the exact same divergence one layer down. Pinned to the
+        # exact same version as main-verify.yml, deliberately; there is no
+        # shared lock/constraints file because this is the repo's only Python
+        # dependency (verified: no requirements/constraints/pyproject file
+        # exists, and every script under scripts/ imports only stdlib + yaml)
+        # — a lock file for one package would be its own S-05-shaped debt.
+        # Bump both `pip install pyyaml==` lines together when this needs to
+        # move.
+        run: pip install pyyaml==6.0.3
       - name: Restore executable bits
         # Rule 0 of this repo: a hook that is not executable fails SILENTLY.
         run: chmod +x hooks/*.sh tests/*.sh bootstrap.sh

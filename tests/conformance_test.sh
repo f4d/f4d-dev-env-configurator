@@ -15,7 +15,7 @@ bad() { echo "  FAIL  $1"; fail=$((fail+1)); }
 
 # Dependency preflight — fail loud ONCE, not ten confusing times (G-03).
 if ! python3 -c "import yaml" 2>/dev/null; then
-  echo "  FAIL  PyYAML is required for the YAML checks: pip3 install pyyaml"
+  echo "  FAIL  PyYAML is required for the YAML checks: pip3 install pyyaml==6.0.3"
   echo "pass=0 fail=1"
   exit 1
 fi

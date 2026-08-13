@@ -30,7 +30,22 @@ jobs:
         # because that job had no setup-python and inherited the runner image's
         # preinstalled PyYAML. This is precisely the divergence this workflow
         # exists to catch, and it caught it on its first run.
-        run: pip install pyyaml
+        #
+        # Pinned, not bare: naming the dependency (this comment's own history)
+        # stopped the runner-image divergence above, but a bare
+        # `pip install pyyaml` still lets pip resolve whatever release is
+        # newest *at run time*. A new PyYAML landing on PyPI between this PR's
+        # gates.yml run and this job's later run on the merge commit
+        # reproduces the same "green for a reason nothing in this repo
+        # controls" problem one layer down — pip's resolver instead of the
+        # runner image. Pinned to the exact same version as gates.yml,
+        # deliberately; there is no shared lock/constraints file because this
+        # is the repo's only Python dependency (verified: no
+        # requirements/constraints/pyproject file exists, and every script
+        # under scripts/ imports only stdlib + yaml) — introducing one for a
+        # single package would be its own S-05-shaped debt. Bump both
+        # `pip install pyyaml==` lines together when this needs to move.
+        run: pip install pyyaml==6.0.3
       - name: Restore executable bits
         run: chmod +x hooks/*.sh tests/*.sh bootstrap.sh
       - name: Harnesses
