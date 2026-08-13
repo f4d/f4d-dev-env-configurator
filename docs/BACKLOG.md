@@ -479,6 +479,124 @@ identical `Merged`/`Commit` block — extracted to `pr_merge_fields()`, used by
 both. One finding was real but deliberately not fixed here — logged as
 **N-04** below rather than folded into this change.
 
+**Addendum, 2026-08-13 — finding 2's own fix was itself wrong; plus one finding this PR never covered.**
+Landed on PR #36 (still open at the time), same branch. Two more findings
+arrived: a review comment on PR #36 itself, and a parallel, more concrete
+finding from roofadvisor/GHL-MCP PR #1075 — the downstream repo that received
+this same template and independently found the same root cause. Both point at
+finding **2** above.
+
+**Finding 2's repo-wide key was a real fix for a real bug, and also itself a
+bug.** Stated plainly rather than glossed over: it swapped one race (a PR and
+the issue it closes carrying different concurrency keys) for a different,
+equally real one. GitHub's own docs on concurrency groups: "only a single job
+or workflow using the same concurrency group will run at a time" and, on what
+happens when a new run arrives, "by default, any existing `pending` job or
+workflow in the same concurrency group will be canceled and the new queued
+job or workflow will take its place" — unconditionally, not gated behind
+`cancel-in-progress`, which the same page describes as controlling only
+whether "any currently running job or workflow in the same concurrency
+group" is *additionally* canceled
+(docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs,
+fetched and quoted directly, not recalled). Under one repo-wide key, an event
+for unrelated issue B arriving while issue A's sync is still pending cancels
+A's pending run — with no later event guaranteed to ever correct A's row. The
+original A22 writeup even named this trade-off explicitly ("losing per-issue
+parallelism costs nothing real") — which was true for the *original* per-
+number race, and wrong for what replaced it.
+
+**The fix: a dedicated `resolve` job, keyed on the linked issue.** A
+concurrency `group:` expression is evaluated before any job runs, from the
+raw event payload, using only GitHub's expression syntax — it cannot itself
+regex-parse a PR body to find a linked issue. So `templates/github/
+notion-sync.yml` now splits into two jobs. `resolve` (no concurrency block of
+its own — read-only, no Notion/GitHub API call, safe to run unbounded in
+parallel) invokes `scripts/notion_sync.py resolve-issue`, a new CLI mode that
+prints the linked issue number for `GITHUB_EVENT_PATH`'s event (the issue's
+own number for an `issues` event, or the PR-body-parsed number for a
+`pull_request` event) and sets it as a job output. `sync` now declares
+`needs: resolve` and moved its `concurrency:` block from the workflow's top
+level down into the job itself:
+`group: notion-sync-${{ github.repository }}-${{ needs.resolve.outputs.issue_number }}`.
+That move is load-bearing, not cosmetic — confirmed against two separate
+GitHub docs pages, not assumed: the top-level `concurrency` key's expression
+"can only use `github`, `inputs` and `vars` contexts" (`needs` excluded;
+docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions),
+while `jobs.<job_id>.concurrency`'s "allowed expression contexts" are
+"`github`, `inputs`, `vars`, `needs`, `strategy`, and `matrix`" (`needs`
+included; same control-the-concurrency-of-workflows-and-jobs page as above).
+A job output could never have reached a top-level `concurrency:` block
+regardless of what computed it. The output-passing mechanics
+(`needs.<job_id>.outputs.<output_name>`, `jobs.<job_id>.outputs`, writing to
+`$GITHUB_OUTPUT`) were confirmed the same way against
+docs.github.com/en/actions/using-jobs/defining-outputs-for-jobs. An unlinked
+PR (resolve-issue prints nothing) falls back to `unlinked-${{ github.run_id }}`
+so it collides with nothing rather than piling every unlinked PR of the repo
+into one bucket.
+
+Reasoned precisely about the concrete example roofadvisor/GHL-MCP PR #1075
+gave — PR #50 whose body closes #20, and the `issues.closed` event GitHub
+fires when #20 is actually closed — and then *ran* `resolve-issue` for both
+events plus an unrelated `issues.labeled` for #99, rather than reasoning
+about it in the abstract:
+
+| formula | issues#20 | pull_request#50 (closes #20) | issues#99 |
+|---|---|---|---|
+| pre-A22 (`github.event.issue.number \|\| github.event.pull_request.number`) | `notion-sync-20` | `notion-sync-50` | `notion-sync-99` |
+| A22 (`github.repository`, repo-wide) | `notion-sync-roofadvisor/GHL-MCP` | `notion-sync-roofadvisor/GHL-MCP` | `notion-sync-roofadvisor/GHL-MCP` |
+| this fix (`github.repository`-`needs.resolve.outputs.issue_number`) | `notion-sync-roofadvisor/GHL-MCP-20` | `notion-sync-roofadvisor/GHL-MCP-20` | `notion-sync-roofadvisor/GHL-MCP-99` |
+
+Pre-A22: #20 and #50 differ (the original race). A22: #20 and #50 match
+(that race fixed) but #20 and #99 *also* match (the new bug — unrelated rows
+sharing one pending slot). This fix: #20 and #50 still match, and #20 and
+#99 now differ. Both properties hold simultaneously, which is the actual bar
+("two events touching the same row must serialize; two events touching
+different rows must not block each other"), not a re-run of the same
+trade-off under a different name.
+
+**Finding 2's regex vocabulary — incomplete, separately.** The linked-issue
+regex accepted only `closes|fixes|resolves` — the present-tense-plural forms
+— against GitHub's actual nine-keyword vocabulary (`close`, `closes`,
+`closed`, `fix`, `fixes`, `fixed`, `resolve`, `resolves`, `resolved`, all
+case-insensitive). Reproduced the reviewer's exact three examples against
+the old pattern first: `Fix #123`, `Close #123`, and `Resolved #123` each
+returned no match. Extracted the parsing into a single `parse_linked_issue()`
+used by both `main()` (unchanged behavior otherwise) and the new
+`resolve-issue` CLI mode above, so the two can never drift on which issue a
+PR links — one was exactly Finding 1's own requirement ("This regex is also
+exactly what Finding 1's job-output resolution step needs to use"). Same
+three examples against the new pattern: all three now resolve to `123`.
+Negative cases checked deliberately, not just the positive ones: `\b` before
+the keyword alternation stops a keyword that is merely a word's suffix
+(`unresolved #123`) or infix (`prefixes #99`) from matching, and the existing
+required `\s+` before the `#` stops a keyword with trailing text glued to it
+(`closest #1`) from matching either — all three verified to still return
+`None`.
+
+**Red-then-green, both fixes, captured directly.** All 13 new checks in
+`tests/notion_sync_test.sh` were run against the pre-addendum
+`scripts/notion_sync.py` and `templates/github/notion-sync.yml` first (`git
+stash` of just those two files, new test file left in place) and observed to
+fail: the YAML-structure checks with `KeyError: 'resolve'` and `jobs=
+['sync']` (no `resolve` job existed yet), the resolve-issue CLI checks with
+`KeyError: 'NOTION_TOKEN'` (the mode did not exist; invoking `resolve-issue`
+just ran into the top-of-file env var reads and crashed), the keyword-vocab
+checks with `AttributeError: module 'notion_sync' has no attribute
+'parse_linked_issue'`, and the end-to-end regex check with the literal
+pre-fix output, `PR has no linked issue — nothing to sync.` 13 failed, 14
+(pre-existing, untouched) passed. Stash popped, same 13 re-run green, 27
+passed, 0 failed. `scripts/verify.sh`: 162 → 174 assertions (measured both
+ends directly, not assumed from the number above), all ten gates still
+clean.
+
+**Not done here, and not claimed:** the actual GitHub Actions run. Per the
+kit's own non-negotiables, that's not achievable from an agent session —
+the evidence above is expression-semantics citations plus the real
+`resolve-issue` subprocess run for every example, not a live workflow
+dispatch. Re-propagation to the three downstream repos (including
+roofadvisor/GHL-MCP, whose PR #1075 supplied the concrete example) is where
+that gets its first live-Actions exercise.
+
 ---
 
 ## 3 — Registry debt (PROSE that should be mechanized)

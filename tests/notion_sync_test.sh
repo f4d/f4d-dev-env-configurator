@@ -11,6 +11,14 @@
 # resolves the bare `on:` key to the boolean True under YAML 1.1 — the
 # "Norway problem" — which is why the checks below index doc[True], not
 # doc["on"]; verified empirically before writing these, not assumed).
+#
+# 2026-08-13 follow-up (PR #36 review + roofadvisor/GHL-MCP PR #1075): two
+# more findings on this same file, added below rather than in a new file.
+# The "Finding 2" section's repo-wide concurrency key is itself superseded
+# here — it fixed the original race but introduced a different one (see
+# docs/BACKLOG.md A22 addendum) — so those checks now assert the corrected,
+# per-linked-issue architecture instead of the repo-wide key they used to
+# assert. The keyword-vocabulary checks are new additions alongside it.
 set -uo pipefail
 KIT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPTS="$KIT/scripts"
@@ -46,18 +54,353 @@ PY
 check "opened and synchronize still present (no regression)" 0 $?
 
 echo
-echo "Finding 2 — notion-sync.yml: shared concurrency key"
+echo "Finding 2 — notion-sync.yml: shared concurrency key (2026-08-13: now per-linked-issue, not repo-wide)"
+# The repo-wide key this used to assert traded the original race (a PR and
+# the issue it closes carrying different keys) for a different, real bug:
+# GitHub cancels a concurrency group's existing PENDING run the instant a
+# new one is queued behind it — "any existing pending job or workflow in the
+# same concurrency group will be canceled and the new queued job or workflow
+# will take its place" — regardless of cancel-in-progress, which only
+# additionally governs the currently RUNNING one (docs.github.com/en/actions/
+# writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-
+# of-workflows-and-jobs). Under a repo-wide key, an event for unrelated issue
+# B could cancel issue A's still-pending sync with nothing left to retry A.
+# Fixed by keying on the *linked issue* instead (resolved in a dedicated
+# `resolve` job — a concurrency `group:` expression is evaluated before any
+# job runs, from the raw event payload, using GitHub's expression syntax; it
+# cannot itself regex-parse a PR body) so a PR and the issue it closes share
+# a group and serialize, while two unrelated issues get distinct groups and
+# run in parallel.
 python3 - "$KIT/templates/github/notion-sync.yml" <<'PY'
 import sys, yaml
 doc = yaml.safe_load(open(sys.argv[1]))
-group = doc["concurrency"]["group"]
-per_event_keyed = "github.event.issue.number" in group or "github.event.pull_request.number" in group
-repo_keyed = "github.repository" in group
-if per_event_keyed or not repo_keyed:
-    print(f"    group={group!r}", file=sys.stderr)
-sys.exit(0 if (repo_keyed and not per_event_keyed) else 1)
+ok = "concurrency" not in doc
+if not ok:
+    print(f"    top-level concurrency block still present: {doc.get('concurrency')!r}", file=sys.stderr)
+sys.exit(0 if ok else 1)
 PY
-check "concurrency group is repo-wide, not per-issue/PR number" 0 $?
+check "no top-level (workflow-level) concurrency block" 0 $?
+
+python3 - "$KIT/templates/github/notion-sync.yml" <<'PY'
+import sys, yaml
+doc = yaml.safe_load(open(sys.argv[1]))
+jobs = doc["jobs"]
+ok = "resolve" in jobs and "concurrency" not in jobs["resolve"]
+if not ok:
+    print(f"    jobs={list(jobs)!r} resolve.concurrency={jobs.get('resolve', {}).get('concurrency')!r}", file=sys.stderr)
+sys.exit(0 if ok else 1)
+PY
+check "resolve job exists and carries no concurrency block of its own" 0 $?
+
+python3 - "$KIT/templates/github/notion-sync.yml" <<'PY'
+import sys, yaml
+doc = yaml.safe_load(open(sys.argv[1]))
+outputs = doc["jobs"]["resolve"].get("outputs", {})
+ok = outputs.get("issue_number") == "${{ steps.resolve.outputs.issue_number }}"
+if not ok:
+    print(f"    resolve.outputs={outputs!r}", file=sys.stderr)
+sys.exit(0 if ok else 1)
+PY
+check "resolve job declares issue_number as a job output sourced from its own step" 0 $?
+
+python3 - "$KIT/templates/github/notion-sync.yml" <<'PY'
+import sys, yaml
+doc = yaml.safe_load(open(sys.argv[1]))
+sync = doc["jobs"]["sync"]
+ok = sync.get("needs") == "resolve"
+if not ok:
+    print(f"    sync.needs={sync.get('needs')!r}", file=sys.stderr)
+sys.exit(0 if ok else 1)
+PY
+check "sync job declares needs: resolve" 0 $?
+
+python3 - "$KIT/templates/github/notion-sync.yml" <<'PY'
+import sys, yaml
+doc = yaml.safe_load(open(sys.argv[1]))
+sync = doc["jobs"]["sync"]
+concurrency = sync.get("concurrency", {})
+group = concurrency.get("group", "")
+cip = concurrency.get("cancel-in-progress")
+keyed_on_output = "needs.resolve.outputs.issue_number" in group
+repo_keyed = "github.repository" in group
+# The pre-A22 bug: keying on the *event's own* number lets a PR and the
+# issue it closes carry different keys and race. Must never regress to this.
+per_event_keyed = "github.event.issue.number" in group or "github.event.pull_request.number" in group
+ok = keyed_on_output and repo_keyed and not per_event_keyed and cip is False
+if not ok:
+    print(f"    sync.concurrency={concurrency!r}", file=sys.stderr)
+sys.exit(0 if ok else 1)
+PY
+check "sync job's concurrency (job-level, so it can see the needs context) keys on the resolved linked issue" 0 $?
+
+echo
+echo "Finding 2 follow-up (concrete example) — PR #50 closing issue #20, vs. unrelated issue #99"
+# Reproduces the roofadvisor/GHL-MCP PR #1075 reviewer's own example: PR #50
+# whose body closes #20, and the issues.closed event GitHub fires when #20
+# is actually closed as a result. Runs the ACTUAL resolve-issue subprocess
+# the workflow's resolve job invokes (not a stub), with only
+# GITHUB_EVENT_PATH set, and proves both resolve to the identical
+# concurrency-group string while an unrelated issue #99 resolves to a
+# different one.
+python3 - "$SCRIPTS" <<'PY'
+import json, os, subprocess, sys
+
+script = os.path.join(sys.argv[1], "notion_sync.py")
+EVT = "/tmp/notion_sync_test_resolve_concrete.json"
+
+
+def resolve(event):
+    json.dump(event, open(EVT, "w"))
+    env = {"PATH": os.environ.get("PATH", ""), "GITHUB_EVENT_PATH": EVT}
+    try:
+        return subprocess.run([sys.executable, script, "resolve-issue"],
+                               env=env, capture_output=True, text=True, timeout=10)
+    finally:
+        os.remove(EVT)
+
+
+def group_for(number_output, repo="roofadvisor/GHL-MCP"):
+    return f"notion-sync-{repo}-{number_output}"
+
+
+issue_20_closed = {"action": "closed", "issue": {"number": 20}}
+pr_50_closed = {"action": "closed", "pull_request": {
+    "number": 50, "body": "This closes #20 by adding the missing null check.",
+}}
+issue_99_labeled = {"action": "labeled", "issue": {"number": 99}}
+
+r_issue, r_pr, r_other = resolve(issue_20_closed), resolve(pr_50_closed), resolve(issue_99_labeled)
+
+errors = []
+for label, r in (("issues(#20)", r_issue), ("pull_request(#50)", r_pr), ("issues(#99)", r_other)):
+    if r.returncode != 0:
+        errors.append(f"{label} exited {r.returncode}: {r.stderr!r}")
+
+n_issue, n_pr, n_other = r_issue.stdout.strip(), r_pr.stdout.strip(), r_other.stdout.strip()
+group_issue, group_pr, group_other = group_for(n_issue), group_for(n_pr), group_for(n_other)
+
+if group_issue != group_pr:
+    errors.append(f"same-row groups differ: issues(#20)={group_issue!r} pull_request(#50)={group_pr!r}")
+if group_issue == group_other:
+    errors.append(f"unrelated issue collided: {group_issue!r} == {group_other!r}")
+
+if errors:
+    for e in errors:
+        print(f"    {e}", file=sys.stderr)
+    print(f"    resolved: issues(#20)->{n_issue!r} pull_request(#50)->{n_pr!r} issues(#99)->{n_other!r}", file=sys.stderr)
+
+sys.exit(1 if errors else 0)
+PY
+check "issues#20 and pull_request#50(closes #20) resolve to the SAME group; unrelated issue#99 does not" 0 $?
+
+echo
+echo "Finding 1 follow-up — scripts/notion_sync.py: resolve-issue CLI mode (used by the workflow's resolve job)"
+python3 - "$SCRIPTS" <<'PY'
+import json, os, subprocess, sys
+
+script = os.path.join(sys.argv[1], "notion_sync.py")
+EVT = "/tmp/notion_sync_test_resolve_secretfree.json"
+json.dump({"issue": {"number": 42}}, open(EVT, "w"))
+# Deliberately NOT set: NOTION_TOKEN, NOTION_WORK_DB, GITHUB_TOKEN. The
+# resolve job in the workflow never has them — if this mode required any of
+# them, the job computing the concurrency key would need secrets it has no
+# other reason to hold.
+env = {"PATH": os.environ.get("PATH", ""), "GITHUB_EVENT_PATH": EVT}
+try:
+    out = subprocess.run([sys.executable, script, "resolve-issue"],
+                          env=env, capture_output=True, text=True, timeout=10)
+finally:
+    os.remove(EVT)
+
+ok = out.returncode == 0 and out.stdout.strip() == "42"
+if not ok:
+    print(f"    exit={out.returncode} stdout={out.stdout!r} stderr={out.stderr!r}", file=sys.stderr)
+sys.exit(0 if ok else 1)
+PY
+check "resolve-issue works with ONLY GITHUB_EVENT_PATH set (no Notion/GitHub secrets)" 0 $?
+
+python3 - "$SCRIPTS" <<'PY'
+import json, os, subprocess, sys
+
+script = os.path.join(sys.argv[1], "notion_sync.py")
+EVT = "/tmp/notion_sync_test_resolve_prkeyword.json"
+# "Fix #123" — one of the six keywords Finding 2 (regex) added. Proves that
+# fix through the actual CLI invocation the workflow makes, not just the
+# parse_linked_issue() unit tests below.
+json.dump({"pull_request": {"number": 77, "body": "Fix #123 once and for all."}}, open(EVT, "w"))
+env = {"PATH": os.environ.get("PATH", ""), "GITHUB_EVENT_PATH": EVT}
+try:
+    out = subprocess.run([sys.executable, script, "resolve-issue"],
+                          env=env, capture_output=True, text=True, timeout=10)
+finally:
+    os.remove(EVT)
+
+ok = out.returncode == 0 and out.stdout.strip() == "123"
+if not ok:
+    print(f"    exit={out.returncode} stdout={out.stdout!r} stderr={out.stderr!r}", file=sys.stderr)
+sys.exit(0 if ok else 1)
+PY
+check "resolve-issue recognizes a previously-unsupported keyword ('Fix #N') too" 0 $?
+
+python3 - "$SCRIPTS" <<'PY'
+import json, os, subprocess, sys
+
+script = os.path.join(sys.argv[1], "notion_sync.py")
+EVT = "/tmp/notion_sync_test_resolve_unlinked.json"
+json.dump({"pull_request": {"number": 61, "body": "No linked issue here."}}, open(EVT, "w"))
+env = {"PATH": os.environ.get("PATH", ""), "GITHUB_EVENT_PATH": EVT}
+try:
+    out = subprocess.run([sys.executable, script, "resolve-issue"],
+                          env=env, capture_output=True, text=True, timeout=10)
+finally:
+    os.remove(EVT)
+
+# Empty stdout + exit 0: an unresolvable PR is a normal outcome, not a
+# failure. The workflow step tells the two apart by checking for empty
+# output, so a nonzero exit here would wrongly fail the resolve job.
+ok = out.returncode == 0 and out.stdout.strip() == ""
+if not ok:
+    print(f"    exit={out.returncode} stdout={out.stdout!r} stderr={out.stderr!r}", file=sys.stderr)
+sys.exit(0 if ok else 1)
+PY
+check "resolve-issue exits 0 with empty stdout when no issue is linked (not a failure)" 0 $?
+
+echo
+echo "Finding 2 follow-up — scripts/notion_sync.py: full closing-keyword vocabulary"
+# Pre-fix, only closes|fixes|resolves matched (present-tense plural only).
+# GitHub also recognizes close, closed, fix, fixed, resolve, resolved — 9
+# keywords total, case-insensitive. A PR body written as "Fix #123" (a valid
+# GitHub closing reference) found no match, so the PR-linked sync path
+# exited early ("PR has no linked issue"), leaving the linked issue's row
+# never updated with the PR URL/branch/commit/merged state.
+python3 - "$SCRIPTS" <<'PY'
+import sys, os
+sys.path.insert(0, sys.argv[1])
+os.environ.update({"NOTION_TOKEN": "t", "NOTION_WORK_DB": "w",
+                    "GITHUB_REPOSITORY": "f4d/test-repo", "GITHUB_TOKEN": "g"})
+import notion_sync as ns
+
+cases = [
+    ("close #1", 1), ("closes #2", 2), ("closed #3", 3),
+    ("fix #4", 4), ("fixes #5", 5), ("fixed #6", 6),
+    ("resolve #7", 7), ("resolves #8", 8), ("resolved #9", 9),
+]
+bad = [(b, ns.parse_linked_issue(b), w) for b, w in cases if ns.parse_linked_issue(b) != w]
+if bad:
+    for b, got, want in bad:
+        print(f"    body={b!r} got={got!r} want={want!r}", file=sys.stderr)
+sys.exit(1 if bad else 0)
+PY
+check "all 9 GitHub closing keywords match" 0 $?
+
+python3 - "$SCRIPTS" <<'PY'
+import sys, os
+sys.path.insert(0, sys.argv[1])
+os.environ.update({"NOTION_TOKEN": "t", "NOTION_WORK_DB": "w",
+                    "GITHUB_REPOSITORY": "f4d/test-repo", "GITHUB_TOKEN": "g"})
+import notion_sync as ns
+
+cases = [
+    ("Close #1", 1), ("Closes #2", 2), ("Closed #3", 3),
+    ("FIX #4", 4), ("FIXES #5", 5), ("FIXED #6", 6),
+    ("Resolve #7", 7), ("Resolves #8", 8), ("RESOLVED #9", 9),
+]
+bad = [(b, ns.parse_linked_issue(b), w) for b, w in cases if ns.parse_linked_issue(b) != w]
+if bad:
+    for b, got, want in bad:
+        print(f"    body={b!r} got={got!r} want={want!r}", file=sys.stderr)
+sys.exit(1 if bad else 0)
+PY
+check "all 9 keywords match case-insensitively" 0 $?
+
+python3 - "$SCRIPTS" <<'PY'
+import sys, os
+sys.path.insert(0, sys.argv[1])
+os.environ.update({"NOTION_TOKEN": "t", "NOTION_WORK_DB": "w",
+                    "GITHUB_REPOSITORY": "f4d/test-repo", "GITHUB_TOKEN": "g"})
+import notion_sync as ns
+
+# Words that merely CONTAIN a keyword as a substring must not false-match:
+# a suffix ("unresolved" ends in "resolved"), a prefix-glued word
+# ("prefixes" contains "fixes"), and trailing text glued to the keyword
+# itself ("closest" starts with "close" but is not followed by whitespace).
+negatives = [
+    "unresolved #123 still open",
+    "prefixes #99 are weird",
+    "closest #1 to done",
+    "enclosed #5 in the box",
+    "See #123 for context",  # no keyword at all
+    "",
+    None,
+]
+bad = [(b, ns.parse_linked_issue(b)) for b in negatives if ns.parse_linked_issue(b) is not None]
+if bad:
+    for b, got in bad:
+        print(f"    false positive on body={b!r} -> {got!r}", file=sys.stderr)
+sys.exit(1 if bad else 0)
+PY
+check "keyword-shaped substrings inside other words, and bodies with no keyword, do not match" 0 $?
+
+echo
+echo "Finding 2 follow-up (end-to-end) — main(): a PR using a previously-unsupported keyword now syncs"
+# Direct regression for the roofadvisor/GHL-MCP PR #1075 reviewer's exact
+# complaint: "the workflow exits without recording the PR URL, branch,
+# commit, or merged state, leaving the linked issue represented only as
+# Closed." Body says "Resolved #12" — pre-fix, no keyword matched, main()
+# printed "PR has no linked issue" and returned without ever calling Notion.
+python3 - "$SCRIPTS" <<'PY'
+import sys, os, json
+from unittest import mock
+
+sys.path.insert(0, sys.argv[1])
+os.environ.update({"NOTION_TOKEN": "t", "NOTION_WORK_DB": "w",
+                    "GITHUB_REPOSITORY": "f4d/test-repo", "GITHUB_TOKEN": "g"})
+import notion_sync as ns
+
+event = {"pull_request": {
+    "number": 90, "title": "x", "body": "Resolved #12",
+    "html_url": "https://github.com/f4d/test-repo/pull/90",
+    "created_at": "2026-01-01T00:00:00Z", "state": "closed", "merged": True,
+    "merged_at": "2026-01-05T00:00:00Z", "merge_commit_sha": "deadbeef1234",
+    "head": {"ref": "fix/x"}, "labels": [],
+}}
+evt_path = "/tmp/notion_sync_test_event_regex_followup.json"
+json.dump(event, open(evt_path, "w"))
+os.environ["GITHUB_EVENT_PATH"] = evt_path
+
+captured = {}
+
+class FakeResponse:
+    def __init__(self, payload):
+        self._body = json.dumps(payload).encode()
+    def read(self):
+        return self._body
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+def fake_urlopen(req, timeout=None):
+    url, method = req.full_url, req.get_method()
+    if url.endswith("/query"):
+        return FakeResponse({"results": [{"id": "row-12-existing"}]})
+    if "/pages/row-12-existing" in url and method == "PATCH":
+        captured["patch_props"] = json.loads(req.data)["properties"]
+        return FakeResponse({})
+    raise AssertionError(f"unexpected request: {method} {url}")
+
+with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+    ns.main()
+os.remove(evt_path)
+
+props = captured.get("patch_props")
+if props is None:
+    print("    no PATCH was ever sent — 'Resolved #12' was not recognized as a linked issue", file=sys.stderr)
+    sys.exit(1)
+state_ok = props.get("State", {}).get("select", {}).get("name") == "Merged"
+if not state_ok:
+    print(f"    patch_props={props}", file=sys.stderr)
+sys.exit(0 if state_ok else 1)
+PY
+check "PR body 'Resolved #12' (previously unsupported) now updates the linked issue's row" 0 $?
 
 echo
 echo "Finding 4 — scripts/notion_sync.py: closed-unmerged PR state"
