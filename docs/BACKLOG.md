@@ -284,6 +284,36 @@ fail=0`). Full suite via `bash scripts/verify.sh`: 153/153 assertions,
 needed no change — this fix makes them ship reliably, it doesn't change what
 they enforce.
 
+**Follow-up (PR #31 review, 2026-08-13):** the six-check section above proved
+only that `src_rel` appeared *somewhere* in `SKILL.md`, never that it appeared
+*next to* its own `dest` (review permalink
+`https://github.com/f4d/f4d-dev-env-configurator/pull/31#discussion_r3771020078`).
+Swapping two workflows' source citations left all six checks green, because
+each check only did `src_rel not in skill` against the whole file — the exact
+mis-scoping this section exists to catch, reproduced through a hole in the
+test itself. Verified against the real, unmodified `tests/conformance_test.sh`
+(commit `11fe9a5`), not a scratch reproduction: with `gates.yml`'s and
+`preflight.yml`'s source clauses swapped in `SKILL.md` (their two lines,
+204-205), the pre-fix script still reported `pass=38 fail=0`. A second
+mutation swapping `claude.yml`'s and `notion-sync.yml`'s sources — both
+packed onto step 10's single shared line — reproduced the same false
+`pass=38 fail=0`, showing the gap held even within one line, not only across
+lines.
+
+**Fixed:** each check now walks `SKILL.md`'s backtick-quoted tokens in
+document order and requires the token immediately after `dest` to cite
+`src_rel`, rather than testing the file as a whole. A same-line-only version
+was tried first and rejected — `gates.yml`/`preflight.yml` sit on adjacent
+lines and the four step-10 workflows share one line, so anything looser than
+"the very next citation" still let same-line or adjacent-line swaps through.
+Red-then-green against both mutations: the fixed check reports `pass=36
+fail=2`, failing exactly the two swapped entries in each case (the other four
+untouched pairs stay green) — confirmed against real `tests/conformance_test.sh`
+runs, mutating and restoring `SKILL.md` in place, not a standalone reproduction.
+Restored, the fixed check reports `pass=38 fail=0` again. Full suite via
+`bash scripts/verify.sh`: 153/153 assertions, `VERIFY PASSED` — the fix only
+tightens which existing 6 assertions are logically checked, not how many run.
+
 **Files:** `skills/project-init/SKILL.md` (steps 10 and 11), `tests/conformance_test.sh`
 
 ---
