@@ -27,7 +27,7 @@ section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 section "harnesses"
 total=0
-for t in hooks render_registry gate_trio statelessness conformance companions; do
+for t in hooks render_registry gate_trio statelessness conformance companions agent_presence; do
   line=$(bash "tests/${t}_test.sh" 2>&1 | tail -1)
   n=$(printf '%s' "$line" | grep -o 'pass=[0-9]*' | cut -d= -f2)
   f=$(printf '%s' "$line" | grep -o 'fail=[0-9]*' | cut -d= -f2)
@@ -47,7 +47,7 @@ printf '  %-20s %s assertions\n' "(total)" "$total"
 section "gate scripts"
 for g in check_statelessness check_guess_lists check_catch_empty check_log_hygiene \
          check_companions check_raw_sql check_pure_imports check_contract_pin \
-         check_fixtures check_rollback; do
+         check_fixtures check_rollback check_agents; do
   if python3 "scripts/${g}.py" >/dev/null 2>&1; then
     printf '  %-24s clean\n' "$g"
   else
