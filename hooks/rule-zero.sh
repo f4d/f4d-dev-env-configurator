@@ -8,6 +8,7 @@
 # than found.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/_parse.sh"
+hook_opted_in || exit 0
 
 input=$(cat)
 path=$(hook_field "$input" "file_path")

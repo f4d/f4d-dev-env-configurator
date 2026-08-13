@@ -34,6 +34,29 @@ printf 'Prefer tabs over spaces in this repo.\n' > "$RULES/generic-house-style.m
 run; check "rules/ populated but no framework-state.json still skips" 0 $?
 o=$(out); printf '%s' "$o" | grep -q "SKIP"; check "skip message says SKIP even though rules/ exists" 0 $?
 
+# RED-then-green regression, found by actually running this script against
+# f4d-kit's own repo post-merge (2026-08-13), not by inspection: this repo
+# carries .claude/.framework-state.json (A18 self-opts it into its own
+# plugin-declared hooks, unrelated to being a scaffolded consumer) but has no
+# .claude/rules/ of its own — it is the plugin source, not a target. Before
+# this fix, framework-state.json alone was treated as sufficient adoption
+# signal, so this shape fell through to full evaluation and reported
+# verify-runner.md falsely missing. The fix requires BOTH signals together.
+reset
+rm -rf "$RULES"
+run; check "framework-state.json present but rules/ entirely absent still skips (f4d-kit's own shape)" 0 $?
+o=$(out); printf '%s' "$o" | grep -q "SKIP"; check "skip message says SKIP for the framework-state-only shape" 0 $?
+
+# G-03 fail-loud must survive the fix above: rules/ present as a plain FILE
+# (corrupted) is a different state than rules/ absent entirely, and must
+# still die() rather than be swallowed into the new SKIP path — the fix uses
+# os.path.exists(rules_dir), not os.path.isdir(rules_dir), specifically to
+# keep this distinction.
+reset
+rm -rf "$RULES"; printf 'not a directory' > "$RULES"
+run; check "rules/ present as a plain file (corrupted) still fail-louds, not skips" 1 $?
+o=$(out); printf '%s' "$o" | grep -qi "not a directory"; check "corrupted rules/ error names the problem" 0 $?
+
 # GREEN: kit adopted, no conditional modules held, verify-runner present — the
 # unconditional floor, nothing more required.
 reset

@@ -15,6 +15,8 @@
 # This hook walks up to the repo root and injects the rules index into every
 # session regardless of where it started.
 set -uo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/_parse.sh"
+hook_opted_in || exit 0
 
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 cwd=$(pwd)

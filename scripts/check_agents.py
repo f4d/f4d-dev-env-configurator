@@ -24,14 +24,19 @@ hooks.
 
 NOT a CI gate, for the same reason check_companions.py is not one: whether an
 agent file belongs here is a function of whether this repo has adopted
-f4d-kit at all (`.claude/.framework-state.json` present — NOT `.claude/rules/`,
-which Claude Code's own native rules feature can populate on a repo that
-never touched f4d-kit; keying off it produced false missing-agent findings
-there, review comment r3771422153 on PR #34). A repo that never adopted the
-kit should not fail a check that assumes it did — that would fire on every
-unrelated repo's CI, and a gate that fires wrongly gets disabled (A8). Exit 0
-with SKIP when `.claude/.framework-state.json` is absent; exit 1 only when
-the kit is adopted here and a required agent file is genuinely missing.
+f4d-kit **as a consumer**, which needs two signals together, not one:
+`.claude/.framework-state.json` present AND `.claude/rules/` present. Neither
+alone is sufficient — `.claude/rules/` alone false-positives on repos using
+Claude Code's own native rules feature for unrelated content (review comment
+r3771422153 on PR #34); `.claude/.framework-state.json` alone false-positives
+on f4d-kit's own repo, which carries that file for a different reason (A18
+self-opt-in) but has no `.claude/rules/` of its own — it is the plugin
+*source*, not a consumer (found 2026-08-13, by running this script against
+this repo, not by inspection). A repo that never adopted the kit as a
+consumer should not fail a check that assumes it did — that would fire on
+every unrelated repo's CI, and a gate that fires wrongly gets disabled (A8).
+Exit 0 with SKIP unless both signals are present; exit 1 only when the kit is
+adopted here and a required agent file is genuinely missing.
 """
 import os
 import sys
@@ -85,15 +90,30 @@ def main():
     agents_dir = os.path.join(base, AGENTS_DIR)
     state_path = os.path.join(base, FRAMEWORK_STATE)
 
-    # Adoption is signalled by the kit's own state file, not by whether
-    # .claude/rules/ exists (review r3771422153 on PR #34): Claude Code's
-    # native rules feature lets any repo hold a .claude/rules/ full of
+    # Adoption needs BOTH signals, not either alone — each one false-positives
+    # on its own. .claude/rules/ alone (review r3771422153 on PR #34): Claude
+    # Code's native rules feature lets any repo hold a .claude/rules/ full of
     # project-local, non-kit content, which the old check mistook for "kit
     # adopted" and then reported real agent files as falsely missing.
-    # .claude/.framework-state.json is written only by /project-init, and is
-    # the same marker check_companions.py's STATE constant already uses.
-    if not os.path.exists(state_path):
-        print(f"check_agents: SKIP — no {FRAMEWORK_STATE} here; this repo has not adopted f4d-kit.")
+    # .claude/.framework-state.json alone: f4d-kit's own repo carries that
+    # file too (A18 self-opts it into its own plugin-declared hooks — a
+    # completely different reason than being a scaffolded consumer), and has
+    # no .claude/rules/ of its own to derive an expected agent set from — it
+    # is the plugin *source*, `templates/rules/` is what consumers copy from,
+    # not a target `upgrade.py` diffs against. Discovered by actually running
+    # this script against this repo post-merge, not by inspection: it failed
+    # its own gate reporting `verify-runner.md` "missing" here, with no
+    # `.claude/agents/` directory to hold it (found 2026-08-13). A genuine
+    # scaffolded repo has `.claude/rules/` populated by the time it has
+    # anything in `.claude/agents/` to check (SKILL.md step 4 precedes step
+    # 7), so requiring both together costs real consumers nothing.
+    # `os.path.exists`, not `os.path.isdir`, on rules_dir here deliberately —
+    # "absent" must SKIP, but "present as a plain file" (corrupted) must still
+    # reach the G-03 fail-loud die() just below, not get swallowed into a
+    # silent skip alongside genuine absence.
+    if not os.path.exists(state_path) or not os.path.exists(rules_dir):
+        print(f"check_agents: SKIP — no {FRAMEWORK_STATE} and {RULES_DIR}/ together here; "
+              "this repo has not adopted f4d-kit as a consumer.")
         return 0
 
     # G-03: "absent" (fine — zero rules modules held, so only the

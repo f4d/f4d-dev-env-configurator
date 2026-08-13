@@ -61,6 +61,46 @@ Resume rules:
     └── agents/                 # selected agents only
 ```
 
+## .claude/settings.json content (NEW mode)
+
+Exact content — this is the single source for its shape; do not restate it
+elsewhere. **Wires only `guard-local.sh`:**
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/guard-local.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Never add entries here for `guard.sh`, `rule-zero.sh`, `done-check.sh`,
+`format.sh`, `verify-record.sh`, or `session-context.sh` — not even with an
+absolute or `${CLAUDE_PLUGIN_ROOT}`-based path.** A18: `${CLAUDE_PLUGIN_ROOT}`
+resolves only inside a *plugin's own* `hooks/hooks.json`, never inside a
+project's `.claude/settings.json` — a command built from it there is silently
+skipped, not run with an empty value (measured on CLI 2.1.220). Those six hooks
+are declared exactly once, globally, in the plugin's `hooks/hooks.json`, and
+each gates itself on this project's `.claude/.framework-state.json` (step 7)
+before doing anything else. Adding a redundant project-level entry for one of
+them does not make it "more wired" — at best it duplicates the plugin's own
+global firing (extra subprocess per matched tool call, a second
+`.enforcement-log` line per real deny), and if written with the broken
+`${CLAUDE_PLUGIN_ROOT}` form, it does nothing at all while looking identical to
+the working entries. `guard-local.sh` is the one hook that belongs here: it is
+copied *into* the project (step 5), so a relative path is correct and is what
+makes it survive the plugin being absent entirely.
+
 ## CLAUDE.md assembly
 
 From `templates/scaffold/CLAUDE.md.tmpl`. Fill every `{{TOKEN}}`. Leave no placeholder behind.
