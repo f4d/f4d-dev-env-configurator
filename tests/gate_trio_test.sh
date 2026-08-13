@@ -111,6 +111,22 @@ T6="$(mktemp -d)"
 ( cd "$T6" && python3 "$KIT/scripts/check_test_count.py" 2>/dev/null | grep -q "NOTE" ); check "C-08 states not-evaluable without BASE_REF" 0 $?
 rm -rf "$T6"
 
+# ---------- C-08 baseline/worktree skip-dir agreement (PR #33 review finding) ----------
+# count_worktree() prunes SKIP_DIRS/dot-dirs (A21); count_at(ref) read every
+# tracked path from `git ls-tree` unfiltered. A tracked test file sitting
+# under a dot-directory at BASE_REF (e.g. .ci/test_hidden.py) was therefore
+# counted in the baseline but never in the worktree, so a completely
+# unchanged PR reported a false test-count regression (repro'd: tests 1 -> 0).
+T6b="$(mktemp -d)"
+( cd "$T6b" && git init -q && git config user.email t@t && git config user.name t \
+  && mkdir -p tests .ci \
+  && printf 'def test_real():\n    pass\n' > tests/test_real.py \
+  && printf 'def test_hidden():\n    pass\n' > .ci/test_hidden.py \
+  && git add -A && git commit -qm "chore: one real test, one dot-dir test" && git branch -M main )
+( cd "$T6b" && BASE_REF=main python3 "$KIT/scripts/check_test_count.py" >/dev/null 2>&1 ); check "C-08 green (repro): unchanged PR does not regress over a skip-dir baseline test" 0 $?
+( cd "$T6b" && rm tests/test_real.py && BASE_REF=main python3 "$KIT/scripts/check_test_count.py" >/dev/null 2>&1 ); check "C-08 red: real test deletion still blocks despite a skip-dir baseline test" 1 $?
+rm -rf "$T6b"
+
 # ---------- G-05 fixture case-diff (in check_fixtures) ----------
 T7="$(mktemp -d)"
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -123,6 +139,124 @@ NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 ( cd "$T7" && BASE_REF=main python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 red: fixture case deletion blocks" 1 $?
 ( cd "$T7" && BASE_REF=main PR_BODY="fixture-case-removed-ok: case2/3 duplicated case1 after vendor collapsed the field" python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 green: stated waiver passes" 0 $?
 rm -rf "$T7"
+
+# ---------- G-05 baseline skip-dir agreement (PR #33 review finding) ----------
+# find_fixture_dirs() prunes SKIP_DIRS/dot-dirs (A21); g05_case_diff()'s own
+# baseline enumeration (`git ls-tree` against BASE_REF) did not, so a fixture
+# tracked under a dot-directory (e.g. .cache/vendor/fixtures/happy.json) that
+# find_fixture_dirs() now declares out of scope still failed G-05 when
+# deleted, because the baseline list never excluded it in the first place.
+T7b="$(mktemp -d)"
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+( cd "$T7b" && git init -q && git config user.email t@t && git config user.name t
+  mkdir -p vendorx/fixtures .cache/vendor/fixtures
+  for n in happy empty rate_limited malformed; do
+    printf '{"_meta":{"recorded_at":"%s","source":"t"},"case1":1,"case2":2}' "$NOW" > "vendorx/fixtures/$n.json"
+  done
+  printf '{"_meta":{"recorded_at":"%s","source":"t"},"case1":1,"case2":2}' "$NOW" > ".cache/vendor/fixtures/happy.json"
+  git add -A && git commit -qm "chore: visible fixtures plus a dot-dir fixture" && git branch -M main
+  rm -rf .cache )
+( cd "$T7b" && BASE_REF=main python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 green (repro): deleting an out-of-scope dot-dir fixture is not a case-removal" 0 $?
+( cd "$T7b" && rm vendorx/fixtures/empty.json && BASE_REF=main python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 red: real (non-skip-dir) fixture deletion still blocks" 1 $?
+rm -rf "$T7b"
+
+# ---------- S-05 check_guess_lists — object-member lists (A17) ----------
+# check_guess_lists previously matched only flat string-literal collections;
+# GHL-MCP's real CUSTOM_OBJECTS is six files each redeclaring an array of
+# OBJECTS that share repeated objectKey values, which passed clean. Red-green
+# was measured against a fixture mirroring that real shape (label/objectKey,
+# and a label/objectId/objectKey variant) before this section existed: the
+# pre-fix gate reported "No duplicate constant lists found" on it; the
+# fingerprinting below is what makes the same fixture block.
+T8="$(mktemp -d)"; ( cd "$T8" && git init -q ) && mkdir -p "$T8/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' },\n  { label: 'Buildings - Roof Records', objectKey: 'custom_objects.buildings_roof_records' }\n];\n" > "$T8/src/mcpServer.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectId: '69c2f45a3d29b2d7bf19d0cf', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectId: '69c300517019dc455d881a00', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectId: '69c2f3769aa1012c02b2b87b', objectKey: 'custom_objects.community_residents' },\n  { label: 'Building - Roof Records', objectId: '69f371e87a6703dfdfe98fef', objectKey: 'custom_objects.buildings_roof_records' }\n];\n" > "$T8/src/mainReportFixed.ts"
+( cd "$T8" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: object-array objectKey repeated across 2 files blocks (GHL-MCP CUSTOM_OBJECTS shape)" 1 $?
+# Captured to a variable rather than piped directly into grep: with
+# `pipefail` (set at the top of this file), python3's own exit 1 — correct,
+# it found a duplicate — would otherwise clobber grep's exit code and make
+# this assertion meaningless regardless of what grep found.
+OUT8="$(cd "$T8" && python3 "$KIT/scripts/check_guess_lists.py" 2>&1)"
+printf '%s' "$OUT8" | grep -q "objectKey: custom_objects"; check "S-05: finding names the objectKey fingerprint, not just a bare value list" 0 $?
+rm "$T8/src/mainReportFixed.ts"
+( cd "$T8" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: same object-array shape in only 1 file does not block" 0 $?
+rm -rf "$T8"
+
+# A lone repeated column that never varies (every entry has the same type/
+# active pair) has no per-array-unique property to fingerprint on at all —
+# must not crash and must not false-flag (G-03 fail-loud contract: "cannot
+# find a stable key" is reported as nothing found, never as a false pass
+# dressed up as a real check, and never as a stack trace).
+T9="$(mktemp -d)"; ( cd "$T9" && git init -q ) && mkdir -p "$T9/src"
+printf "const STATUSES = [\n  { type: 'lead', active: 'true' },\n  { type: 'lead', active: 'true' },\n  { type: 'lead', active: 'true' }\n];\n" > "$T9/src/a.ts"
+printf "const STAGES = [\n  { type: 'lead', active: 'true' },\n  { type: 'lead', active: 'true' },\n  { type: 'lead', active: 'true' }\n];\n" > "$T9/src/b.ts"
+( cd "$T9" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: object-array with no discernible stable key does not crash or false-flag" 0 $?
+rm -rf "$T9"
+
+# Same identifying key name, one value drifted — must not be unified. Exact
+# fingerprint matching only, same as the flat-string path; no fuzzy overlap.
+T10="$(mktemp -d)"; ( cd "$T10" && git init -q ) && mkdir -p "$T10/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }\n];\n" > "$T10/src/a.ts"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Site Visits', objectKey: 'custom_objects.site_visits' }\n];\n" > "$T10/src/b.ts"
+( cd "$T10" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: object-arrays with one drifted objectKey value are not falsely unified" 0 $?
+rm -rf "$T10"
+
+# fail-loud (G-03): a file that cannot even be read (dangling symlink) must
+# not crash the scan or mask a real duplicate elsewhere in the same walk —
+# matches the pre-existing open()-failure try/except-continue this gate
+# already had for the flat-string path.
+T11="$(mktemp -d)"; ( cd "$T11" && git init -q ) && mkdir -p "$T11/src"
+echo "const ROLES = ['admin', 'editor', 'viewer'];" > "$T11/src/a.ts"
+echo "const PERMS = ['admin', 'editor', 'viewer'];" > "$T11/src/b.ts"
+ln -s /nonexistent/target/does/not/exist.ts "$T11/src/broken.ts"
+( cd "$T11" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: unreadable file (dangling symlink) does not crash and real duplicate still blocks" 1 $?
+rm -rf "$T11"
+
+# ---------- S-05 object-array entries separated by line comments (PR #35 review) ----------
+# OBJARR_RE's old entry separator was bare `\s*,\s*` — a `//` comment sitting
+# between one entry's comma and the next entry's `{` (`{ id: 'one' }, // first`)
+# is not whitespace, so the whole array silently failed to match and the
+# duplicate went unreported. Not a rare shape: hand-maintained lookup arrays
+# get trailing per-entry comments *because* they are exactly the
+# copy-pasted-across-files code S-05 exists to catch.
+T12="$(mktemp -d)"; ( cd "$T12" && git init -q ) && mkdir -p "$T12/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' }, // first\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' }, // second\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }, // third\n];\n" > "$T12/src/a.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' }, // dup-a\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' }, // dup-b\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }, // dup-c\n];\n" > "$T12/src/b.ts"
+( cd "$T12" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: object-array duplicate with per-entry line comments blocks" 1 $?
+rm "$T12/src/b.ts"
+( cd "$T12" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: same line-commented shape in only 1 file does not block" 0 $?
+rm -rf "$T12"
+
+# ---------- S-05 object-array entries separated by block comments (PR #35 review) ----------
+# Same gap, `/* ... */` form. One file below carries the comments and the
+# other has none at all, to prove the fingerprint rides on the entries'
+# values — never on the comment text, or on whether a comment is there.
+T13="$(mktemp -d)"; ( cd "$T13" && git init -q ) && mkdir -p "$T13/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' }, /* first */\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' }, /* second */\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' } /* third */\n];\n" > "$T13/src/a.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }\n];\n" > "$T13/src/b.ts"
+( cd "$T13" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: object-array duplicate with block comments on only one side still blocks" 1 $?
+rm -rf "$T13"
+
+# ---------- S-05 object-array with a comment leading the array (PR #35 review) ----------
+# The reviewer's finding named "per-entry or leading comments" — this is the
+# other shape: a comment sitting right after `[`, before the first entry,
+# which the old `\[\s*` could not skip over either.
+T14="$(mktemp -d)"; ( cd "$T14" && git init -q ) && mkdir -p "$T14/src"
+printf "const CUSTOM_OBJECTS = [\n  // GHL custom object catalog\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }\n];\n" > "$T14/src/a.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }\n];\n" > "$T14/src/b.ts"
+( cd "$T14" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: object-array duplicate with a comment leading the array still blocks" 1 $?
+rm -rf "$T14"
+
+# ---------- S-05 nested-object entries still fail closed (PR #35 review regression guard) ----------
+# The comment-tolerance fix only loosens the separator BETWEEN entries; it
+# must not loosen `[^{}]*` itself. An entry holding a nested object should
+# still simply fail to match, exactly as documented above OBJARR_RE — green
+# both before and after this fix, proving the conservative trade-off holds.
+T15="$(mktemp -d)"; ( cd "$T15" && git init -q ) && mkdir -p "$T15/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities', meta: { nested: true } },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps', meta: { nested: true } },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents', meta: { nested: true } }\n];\n" > "$T15/src/a.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities', meta: { nested: true } },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps', meta: { nested: true } },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents', meta: { nested: true } }\n];\n" > "$T15/src/b.ts"
+( cd "$T15" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: object-array entries holding a nested object still fail to match (fail-closed, unchanged)" 0 $?
+rm -rf "$T15"
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
