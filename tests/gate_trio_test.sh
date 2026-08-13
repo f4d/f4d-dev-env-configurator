@@ -160,5 +160,57 @@ NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 ( cd "$T7b" && rm vendorx/fixtures/empty.json && BASE_REF=main python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 red: real (non-skip-dir) fixture deletion still blocks" 1 $?
 rm -rf "$T7b"
 
+# ---------- S-05 check_guess_lists — object-member lists (A17) ----------
+# check_guess_lists previously matched only flat string-literal collections;
+# GHL-MCP's real CUSTOM_OBJECTS is six files each redeclaring an array of
+# OBJECTS that share repeated objectKey values, which passed clean. Red-green
+# was measured against a fixture mirroring that real shape (label/objectKey,
+# and a label/objectId/objectKey variant) before this section existed: the
+# pre-fix gate reported "No duplicate constant lists found" on it; the
+# fingerprinting below is what makes the same fixture block.
+T8="$(mktemp -d)"; ( cd "$T8" && git init -q ) && mkdir -p "$T8/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' },\n  { label: 'Buildings - Roof Records', objectKey: 'custom_objects.buildings_roof_records' }\n];\n" > "$T8/src/mcpServer.ts"
+printf "const REPORTING_CUSTOM_OBJECTS = [\n  { label: 'Communities', objectId: '69c2f45a3d29b2d7bf19d0cf', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectId: '69c300517019dc455d881a00', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectId: '69c2f3769aa1012c02b2b87b', objectKey: 'custom_objects.community_residents' },\n  { label: 'Building - Roof Records', objectId: '69f371e87a6703dfdfe98fef', objectKey: 'custom_objects.buildings_roof_records' }\n];\n" > "$T8/src/mainReportFixed.ts"
+( cd "$T8" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: object-array objectKey repeated across 2 files blocks (GHL-MCP CUSTOM_OBJECTS shape)" 1 $?
+# Captured to a variable rather than piped directly into grep: with
+# `pipefail` (set at the top of this file), python3's own exit 1 — correct,
+# it found a duplicate — would otherwise clobber grep's exit code and make
+# this assertion meaningless regardless of what grep found.
+OUT8="$(cd "$T8" && python3 "$KIT/scripts/check_guess_lists.py" 2>&1)"
+printf '%s' "$OUT8" | grep -q "objectKey: custom_objects"; check "S-05: finding names the objectKey fingerprint, not just a bare value list" 0 $?
+rm "$T8/src/mainReportFixed.ts"
+( cd "$T8" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: same object-array shape in only 1 file does not block" 0 $?
+rm -rf "$T8"
+
+# A lone repeated column that never varies (every entry has the same type/
+# active pair) has no per-array-unique property to fingerprint on at all —
+# must not crash and must not false-flag (G-03 fail-loud contract: "cannot
+# find a stable key" is reported as nothing found, never as a false pass
+# dressed up as a real check, and never as a stack trace).
+T9="$(mktemp -d)"; ( cd "$T9" && git init -q ) && mkdir -p "$T9/src"
+printf "const STATUSES = [\n  { type: 'lead', active: 'true' },\n  { type: 'lead', active: 'true' },\n  { type: 'lead', active: 'true' }\n];\n" > "$T9/src/a.ts"
+printf "const STAGES = [\n  { type: 'lead', active: 'true' },\n  { type: 'lead', active: 'true' },\n  { type: 'lead', active: 'true' }\n];\n" > "$T9/src/b.ts"
+( cd "$T9" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: object-array with no discernible stable key does not crash or false-flag" 0 $?
+rm -rf "$T9"
+
+# Same identifying key name, one value drifted — must not be unified. Exact
+# fingerprint matching only, same as the flat-string path; no fuzzy overlap.
+T10="$(mktemp -d)"; ( cd "$T10" && git init -q ) && mkdir -p "$T10/src"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Community Residents', objectKey: 'custom_objects.community_residents' }\n];\n" > "$T10/src/a.ts"
+printf "const CUSTOM_OBJECTS = [\n  { label: 'Communities', objectKey: 'custom_objects.communities' },\n  { label: 'Site Maps', objectKey: 'custom_objects.site_maps' },\n  { label: 'Site Visits', objectKey: 'custom_objects.site_visits' }\n];\n" > "$T10/src/b.ts"
+( cd "$T10" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 green: object-arrays with one drifted objectKey value are not falsely unified" 0 $?
+rm -rf "$T10"
+
+# fail-loud (G-03): a file that cannot even be read (dangling symlink) must
+# not crash the scan or mask a real duplicate elsewhere in the same walk —
+# matches the pre-existing open()-failure try/except-continue this gate
+# already had for the flat-string path.
+T11="$(mktemp -d)"; ( cd "$T11" && git init -q ) && mkdir -p "$T11/src"
+echo "const ROLES = ['admin', 'editor', 'viewer'];" > "$T11/src/a.ts"
+echo "const PERMS = ['admin', 'editor', 'viewer'];" > "$T11/src/b.ts"
+ln -s /nonexistent/target/does/not/exist.ts "$T11/src/broken.ts"
+( cd "$T11" && python3 "$KIT/scripts/check_guess_lists.py" >/dev/null 2>&1 ); check "S-05 red: unreadable file (dangling symlink) does not crash and real duplicate still blocks" 1 $?
+rm -rf "$T11"
+
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
