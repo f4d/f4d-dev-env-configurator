@@ -83,10 +83,15 @@ Two things worth knowing:
 
 - **The trailing slash matters.** `claude plugin marketplace add .` is rejected as an
   invalid source format; the path form needs `./` or an absolute path.
-- **`Hooks (0)` in `plugin details` is correct, not a defect.** The kit's hooks are
-  wired per-project — `/project-init` writes `.claude/settings.json` in the target
-  pointing at `${CLAUDE_PLUGIN_ROOT}/hooks/...`, so they arm for scaffolded repos
-  rather than globally for every session.
+- **`plugin details` lists the kit's hooks (A18).** They are declared once, globally,
+  in `hooks/hooks.json` — the only place `${CLAUDE_PLUGIN_ROOT}` resolves; a hook
+  command built from it inside a *project's own* `.claude/settings.json` is silently
+  skipped, never run (measured on CLI 2.1.220 — `docs/BACKLOG.md` A18). "Global"
+  means these match on every repo you have Claude Code open in, not only ones this
+  kit scaffolded, so each one gates itself on `.claude/.framework-state.json` and
+  does nothing at all in a repo that never asked for it. `/project-init` writes only
+  `.claude/hooks/guard-local.sh` into a target's own `settings.json` — the
+  self-contained fallback that still works if the plugin is ever absent.
 
 These commands are exercised by `tests/conformance_test.sh`, which fails if
 `.claude-plugin/marketplace.json` stops parsing or stops naming a real plugin

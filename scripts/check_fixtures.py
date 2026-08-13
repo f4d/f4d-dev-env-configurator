@@ -24,14 +24,18 @@ FIXTURE_DIRS = ("fixtures", "__fixtures__", "testdata", "cassettes")
 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import repo_root as root  # noqa: E402
+from _common import SKIP_DIRS, filter_skipped_paths, repo_root as root  # noqa: E402
 
 
 def find_fixture_dirs(base):
     out = []
     for dirpath, dirnames, _ in os.walk(base):
-        if any(p in dirpath for p in (".git", "node_modules", ".venv", "dist")):
-            continue
+        # A21: this used to be `if any(p in dirpath ...)` — a substring match
+        # against a 4-item hand-rolled list that excluded neither build/ nor
+        # .next/, and never pruned dirnames, so the walk still descended into
+        # every skipped directory looking for nested fixture dirs. Prune for
+        # real, from the shared set, same as every other scanner.
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
         for d in dirnames:
             if d in FIXTURE_DIRS:
                 out.append(os.path.join(dirpath, d))
@@ -136,6 +140,12 @@ def g05_case_diff(dirs):
                                     capture_output=True, text=True, check=True).stdout.splitlines()
     except subprocess.CalledProcessError:
         base_files = []
+    # Agree with find_fixture_dirs()'s SKIP_DIRS/dot-dir walk pruning, or a
+    # fixture that lived under a directory this run declares out of scope
+    # (e.g. a dot-prefixed vendor cache) still reads as a G-05 case-removal
+    # when its directory disappears — a false positive on a path nothing
+    # above this ever considered in scope.
+    base_files = filter_skipped_paths(base_files)
     fixture_seg = re_mod.compile(r"(^|/)(fixtures|__fixtures__|testdata|cassettes)(/|$)")
     for bf in base_files:
         if not bf.endswith(".json") or not fixture_seg.search(bf):

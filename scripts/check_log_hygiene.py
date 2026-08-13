@@ -18,9 +18,11 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import repo_root  # noqa: E402
+from _common import SKIP_DIRS, repo_root  # noqa: E402
 
-SKIP = (".git", "node_modules", ".venv", "dist", "build", ".next", "fixtures", "__fixtures__", "testdata")
+# Additive (A21): fixture/test-data dirs are not source under O-05's remit —
+# extend the shared skip set rather than hand-copy it.
+SKIP = SKIP_DIRS | {"fixtures", "__fixtures__", "testdata"}
 EXT = (".py", ".ts", ".tsx", ".js", ".jsx")
 TESTY = re.compile(r"(^|[._-])test|spec\.|^tests?$")
 CALL = re.compile(
@@ -39,7 +41,7 @@ def main():
     base = repo_root()
     findings, bare, scanned = [], [], 0
     for dirpath, dirnames, filenames in os.walk(base):
-        dirnames[:] = [d for d in dirnames if d not in SKIP and not TESTY.search(d)]
+        dirnames[:] = [d for d in dirnames if d not in SKIP and not d.startswith(".") and not TESTY.search(d)]
         for name in filenames:
             if not name.endswith(EXT) or TESTY.search(name):
                 continue
