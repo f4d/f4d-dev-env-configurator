@@ -60,8 +60,7 @@ consumer installing from GitHub instead gets
 
 | ID | Item | Detail |
 |---|---|---|
-| **B-01** | Notion writes rejected | Three attempts to create `Engineering HQ — All Companies` + Work DB returned "No approval received" — nothing was created, nothing archived. Check the Notion connector has **write** access, or look for a pending approval dialog. Once cleared: create the HQ page, the Work DB per `templates/notion/WORK_DB_SCHEMA.md` (incl. `Company` + `Hub Mode`), all 9 views, seed `Company` options (Rezon8, F4 Digital, Brand Torus, RoofAdvisor, Personal), and archive the 4 legacy Trello boards. |
-| **B-02** | Brand Torus repo path | Container cannot see `/Users/ian/GitHub/`. Need: `ls -d ~/GitHub/*brand* ~/GitHub/*torus*` output. Then `/project-audit` must run from inside that dir in Claude Code on desktop. |
+| **B-01** | Notion writes rejected — **RoofAdvisor unblocked 2026-08-12, cross-company hub still open** | Three attempts to create `Engineering HQ — All Companies` + Work DB returned "No approval received" — nothing was created, nothing archived. Rather than keep waiting on that approval, RoofAdvisor was switched to `hub_mode: local` and given its own `Engineering Work DB` (data source `76da9458-744e-4f78-bf7c-e726062b9618`) under the existing "Operations OS" page in its own workspace — 7 of the schema's views built (Triage, This week, In flight, By launch, By area, By project, Stale; the 2 hub-only views — By company, Company: `<X>` — don't apply to a single-company DB). Repo options seeded for 6 of the 7 `roofadvisor` GitHub repos (all but `mattpocock-skills`, which looks like an unrelated reference fork). Remaining, lower urgency: the actual cross-company hub (`Engineering HQ — All Companies`, serving Rezon8/F4 Digital/Personal) is still un-created if/when another company needs Notion tracking — check for a pending approval dialog when that's picked back up. Archiving the 4 legacy Trello boards was never scoped to RoofAdvisor and is still untouched. |
 | ~~B-03~~ | ~~Push the kit~~ | ✅ Done 2026-08-10 — published as `f4d/f4d-dev-env-configurator` (private). Docs updated to reference the real slug; the plugin/product name stays `f4d-kit`. |
 | **B-04** | Secrets | Org-level: `CLAUDE_CODE_OAUTH_TOKEN` (via `claude setup-token`), `NOTION_TOKEN`. Org variable: `NOTION_WORK_DB` (**data source** id, not database id). |
 | **B-05** | External Agents waitlist | Notion alpha. Free. Collapses two systems into one if it ships. |
@@ -1175,7 +1174,7 @@ opt-in — not with the project. Still needs O5 before it can move.
 | N-01 | Migrate sync to Notion Workers when syncs/webhooks leave beta, **or at the third repo** — whichever first. Full analysis in `templates/notion/SYNC_ARCHITECTURE.md`. Four invariants make it a swap not a rewrite. |
 | N-02 | `hub+local` reconciliation is documented (`/notion-sync` Mode 5) but never exercised — no project uses the mode yet |
 | N-03 | Work DB `Repo` select options must be added as each repo is wired; sync fails on an unknown option |
-| N-04 | `scripts/notion_sync.py`'s `call()` has no retry/backoff on 429/5xx (A22, `integration-auditor`). Not "low volume justifies it" alone — `NOTION_TOKEN` is an **org-level** secret shared across every repo wired to the Work DB (≥3 today), and Notion rate-limits per-integration/token, not per-repo, so simultaneous activity across repos can plausibly 429 with no self-healing today. Real gap, not urgent yet (B-01 blocks the Work DB even existing). **If picked up:** retry only on a definitive 429/5xx response, never on `URLError`/`TimeoutError` where the outcome is ambiguous — and never blindly retry the `POST /pages` create without re-running `find_row()` first, or a retried create after an ambiguous timeout duplicates the row. |
+| N-04 | `scripts/notion_sync.py`'s `call()` has no retry/backoff on 429/5xx (A22, `integration-auditor`). Not "low volume justifies it" alone — `NOTION_TOKEN` is shared across every repo wired to a given Work DB, and Notion rate-limits per-integration/token, not per-repo, so simultaneous activity across repos can plausibly 429 with no self-healing today. **No longer hypothetical — live now:** RoofAdvisor's `Engineering Work DB` (B-01) exists and is actively wired to 3 real repos (GHL-MCP, AR-AP, companycam-ghl-integration) as of 2026-08-13, sharing one `NOTION_TOKEN`. Worth picking up sooner than "someday" now that there's real concurrent traffic to trigger it, not just a theoretical multi-repo future. **If picked up:** retry only on a definitive 429/5xx response, never on `URLError`/`TimeoutError` where the outcome is ambiguous — and never blindly retry the `POST /pages` create without re-running `find_row()` first, or a retried create after an ambiguous timeout duplicates the row. |
 
 ---
 
@@ -1183,7 +1182,6 @@ opt-in — not with the project. Still needs O5 before it can move.
 
 ```
 NOW      B-01 Notion approval    (blocked on Ian)
-         B-02 Brand Torus path   (blocked on Ian)
 
 NEXT     A23  session-context.sh still writes no telemetry for a session
               launched from a subdirectory (mid-session drift fixed 1.23.8;
