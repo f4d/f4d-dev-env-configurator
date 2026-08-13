@@ -20,10 +20,15 @@ def repo_root() -> str:
         return os.getcwd()
 
 
-SKIP_DIRS = (
+# frozenset (not a tuple) deliberately: a scanner with a genuine extra need
+# (e.g. check_raw_sql.py excluding migrations/db/sql) extends this via
+# `SKIP_DIRS | {"extra", "dirs"}` — documented and additive, never a
+# hand-copied duplicate. That is A21: this constant existed for exactly this
+# purpose, and only one of seven scanners actually imported it.
+SKIP_DIRS = frozenset({
     ".git", "node_modules", ".venv", "venv", "dist", "build",
     "__pycache__", ".next", "target",
-)
+})
 
 
 def plugin_registry_path() -> str:

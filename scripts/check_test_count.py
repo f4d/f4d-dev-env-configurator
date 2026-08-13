@@ -18,6 +18,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import SKIP_DIRS  # noqa: E402
+
 TEST_FILE = re.compile(r"(^|/)tests?/|(^|/)test_[^/]+\.py$|[._][a-z]*test[a-z]*\.[jt]sx?$|\.spec\.[jt]sx?$|_test\.py$", re.I)
 CASE = re.compile(r"^\s*(?:async\s+)?def test_|(?<![.\w])(?:it|test)\s*\(", re.M)
 
@@ -44,7 +47,7 @@ def count_at(ref):
 def count_worktree():
     total = 0
     for dirpath, dirnames, filenames in os.walk("."):
-        dirnames[:] = [d for d in dirnames if d not in (".git", "node_modules", ".venv", "dist", "build", ".next")]
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
         for name in filenames:
             rel = os.path.relpath(os.path.join(dirpath, name))
             if not TEST_FILE.search(rel.replace(os.sep, "/")):

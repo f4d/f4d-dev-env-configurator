@@ -24,14 +24,18 @@ FIXTURE_DIRS = ("fixtures", "__fixtures__", "testdata", "cassettes")
 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import repo_root as root  # noqa: E402
+from _common import SKIP_DIRS, repo_root as root  # noqa: E402
 
 
 def find_fixture_dirs(base):
     out = []
     for dirpath, dirnames, _ in os.walk(base):
-        if any(p in dirpath for p in (".git", "node_modules", ".venv", "dist")):
-            continue
+        # A21: this used to be `if any(p in dirpath ...)` — a substring match
+        # against a 4-item hand-rolled list that excluded neither build/ nor
+        # .next/, and never pruned dirnames, so the walk still descended into
+        # every skipped directory looking for nested fixture dirs. Prune for
+        # real, from the shared set, same as every other scanner.
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
         for d in dirnames:
             if d in FIXTURE_DIRS:
                 out.append(os.path.join(dirpath, d))
