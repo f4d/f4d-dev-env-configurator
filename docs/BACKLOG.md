@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-13 · **Version shipped:** 1.23.4 · **Status:** all validation green (234/234 test assertions, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-13 · **Version shipped:** 1.23.5 · **Status:** all validation green (261/261 test assertions, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -24,7 +24,7 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **234** | hooks (57) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (48) + companions (18) + scanner_agreement (8) + agent_presence (34) — measured via `bash scripts/verify.sh`, 2026-08-13 |
+| Tests | **261** | hooks (57) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (48) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 45 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -480,6 +480,263 @@ any reference to an ID that does not exist.
 
 ---
 
+### A22 — notion-sync templates: five review findings, all real · ✅ fixed in 1.23.1
+
+The automated PR reviewer found five defects across `templates/github/claude-code-review.yml`,
+`templates/github/notion-sync.yml`, and `scripts/notion_sync.py` on the
+companycam-ghl-integration PR — the first review these three canonical
+templates got after being copied byte-identical into three live RoofAdvisor
+repos (GHL-MCP, AR-AP, companycam-ghl-integration). `scripts/notion_sync.py`
+had never had a test; `tests/notion_sync_test.sh` is its first (14 checks,
+wired into `scripts/verify.sh`'s harness loop).
+
+**1 — draft→ready-for-review never triggered review.** `claude-code-review.yml`'s
+job already gates on `github.event.pull_request.draft == false`, but `types:`
+was `[opened, synchronize]` — `ready_for_review` is a distinct action, not a
+`synchronize`, so marking a draft ready with no further commit created no
+workflow run at all (the `if:` never even evaluates; there's no run to skip).
+Added `ready_for_review` to `types:`. Verified against the actual parsed YAML,
+not assumed — PyYAML's SafeLoader resolves the bare `on:` key to the boolean
+`True` under YAML 1.1 (confirmed empirically first: `list(doc)` on the
+unmodified file prints `['name', True, 'permissions', 'jobs']`, no string
+`"on"` at all). Pre-fix `doc[True]["pull_request"]["types"] == ['opened',
+'synchronize']`; post-fix includes `ready_for_review`, `opened` and
+`synchronize` unchanged.
+
+**2 — PR and issue events for the same work item raced.** `notion-sync.yml`'s
+concurrency group was ``notion-sync-${{ github.event.issue.number ||
+github.event.pull_request.number }}``. A merge that closes a linked issue
+fires both `pull_request.closed` (group `notion-sync-45`) and `issues.closed`
+(group `notion-sync-12`) — different keys, no serialization between them,
+both able to write the same Notion row concurrently. Changed to a repo-wide
+key: `notion-sync-${{ github.repository }}`. Per finding guidance, resolving
+a PR's linked issue number at the YAML-trigger level would need an API call
+concurrency groups can't make, so this serializes the whole repo instead of
+attempting per-issue keys — deliberately not over-engineered; the workflow is
+issue/PR events only, low-volume, losing per-issue parallelism costs nothing
+real.
+
+**3 — the serious one: PR events corrupted the linked issue's own fields.**
+Traced fully, as asked, rather than taken on faith. `OWNED` (line 34 pre-fix)
+lists the fields this sync may write but is **never referenced anywhere else
+in the file** — decorative, not enforced; that is not where the bug lives.
+The bug is in `main()`: GitHub's `pull_request` payload carries no top-level
+`issue` key, so every PR event built a *synthetic* issue from the PR itself —
+`title`, `created_at`, `labels`, all PR-sourced — and `build_props` sent that
+unconditionally, **even when a real, already-correct row existed for the
+issue**. A PR whose title, labels, or timestamp differ from its issue (the
+normal case — "fix: null check" vs. "Users can't log in") silently overwrote
+the issue's own `Title`/`Opened`/`GH Labels` on every open, and again on every
+merge or close. Also found while tracing: `Title` is missing from the literal
+`OWNED` set even though `build_props` writes it on every real `issues` event —
+a documentation-accuracy gap, fixed alongside (one-line addition; `OWNED`
+remains unenforced/decorative, that part is unchanged).
+
+Fix splits the write path in two. `build_pr_mirror_props()` (new) handles a PR
+event against an *existing* row: only `State`/`PR URL`/`Branch`/`Merged`/
+`Commit`/`Synced` — never `Title`/`Opened`/`GH Labels`. For the *no row yet*
+case — a PR is the first thing Notion has seen for its issue, a real scenario
+(an issue predating the sync, or whose `issues` event sync failed or hasn't
+fired yet), not hypothetical — `fetch_issue()` (new) fetches the real issue
+from the GitHub API instead of fabricating one. `GITHUB_TOKEN` was already
+threaded into the workflow's `env:` block and documented in this script's own
+docstring, completely unused until now — strong circumstantial evidence this
+was the intended path all along. `fetch_issue` soft-fails (`None`, logged) on
+error rather than raising: nothing has been written to Notion yet at that
+point, so a bad cross-repo reference or a flaky GitHub call skips one sync
+instead of failing the whole job the way a Notion write failure does.
+
+Red-then-green, captured directly — the harness was written and run against
+the unmodified files first, not reconstructed after the fact. Pre-fix, the
+corruption check failed with `issue-owned fields leaked into a PR-triggered
+PATCH: ['Title', 'Opened', 'GH Labels']`, full payload showing the PR's own
+title sitting in the `Title` property of issue #12's existing row. The
+seed-from-PR check failed pre-fix with `Title='PR-side title for new
+issue...', want 'Real GitHub Issue Title'` — the fabrication, caught
+concretely. Both green post-fix; 3 more checks cover the existing-row PATCH
+still carrying its legitimate PR-owned fields, and an unresolvable issue
+reference skipping cleanly instead of fabricating a row.
+
+**4 — closed-but-unmerged PRs stuck "In Review" forever.** `state = "Merged"
+if pr.get("merged") else "In Review"` reached the `else` on any non-merged
+PR, including abandoned ones — `pull_request.closed` fires on close-without-
+merge too, same as on merge. The issue normally stays open and nothing else
+ever touches the row again. New `pr_state()`: `merged` → `Merged`; `state ==
+"closed"` and not merged → `Closed` — confirmed against the rest of the file
+rather than assumed, by reading `build_props`'s existing `elif issue.get
+("state") == "closed"` branch, which already uses `"Closed"` for a closed
+issue with no PR; open and not merged → `In Review`, unchanged. Red pre-fix
+(`got State='In Review', want Closed`), green post-fix; merged-PR and
+open-PR cases re-checked as regressions, both still correct.
+
+**5 — unbounded `urlopen()`.** No `timeout=` on the Notion call — a stalled
+connection could occupy the job until the runner's own limit, and (per #2,
+now repo-wide) block every other notion-sync run behind it. Added
+`REQUEST_TIMEOUT = 30` and passed it to every `urlopen()` call, including the
+new GitHub one in `fetch_issue()`. `except (urllib.error.URLError,
+TimeoutError)` now logs and re-raises the same way `HTTPError` already did.
+Confirmed pre-fix, mocked (no live outage needed): a `TimeoutError` from
+`urlopen()` propagated with **no stderr diagnostic at all** (only `HTTPError`
+was caught) while `urlopen()` itself received no `timeout` kwarg
+(`timeout=None` observed directly off the mock call). Post-fix: `timeout=30`
+observed on every call, and the diagnostic is logged before the exception
+still propagates.
+
+**Housekeeping surfaced along the way:** `check_catch_empty` (S-03) flagged
+`fetch_issue`'s two new `except: ... return None` blocks — correctly, per its
+own pattern, but both already log before returning, and the only caller
+(`if not issue: return`) treats `None` as an explicit checked skip, never as
+a found-but-empty issue. Annotated `catch-empty-ok`, matching the existing
+convention, rather than restructured working code to dodge a gate. Not a
+registry-tracked rule: `templates/rules/REGISTRY.md` grepped clean for
+`notion`/`sync` (case-insensitive, whole file) except one unrelated hit —
+I-06, generic ingestion-idempotency PROSE for scaffolded *projects*, not the
+kit's own sync tooling. Confirmed rather than assumed; this is process-template
+code the registry doesn't cover.
+
+`scripts/verify.sh`: 147 → 162 assertions (`tests/notion_sync_test.sh` adds
+15, now in the harness loop alongside hooks/render_registry/gate_trio/
+statelessness/conformance/companions). All ten gate scripts clean. Top-level
+summary table above left untouched deliberately — three other version-bump
+PRs (1.22.3, 1.22.4, 1.23.0 ×2) are open concurrently against this same file;
+reconciling all of them is one pass, not five.
+
+**Independent check:** ran `integration-auditor` against the diff before
+opening the PR (both external calls this file makes — Notion and the new
+GitHub fetch — are exactly its remit). It confirmed timeout coverage is
+complete and correct on both calls, the `call()`-raises vs.
+`fetch_issue()`-soft-fails asymmetry is deliberate and correct (raise
+wherever silently continuing could take the wrong branch — e.g. `find_row`
+failing closed would misroute into the create path and duplicate a row;
+soft-fail only where the caller's response to `None` is a true no-op), and
+vendor shapes stay contained to this file. Two things came out of it and were
+applied directly: `fetch_issue`'s own `urlopen()` timeout had no dedicated
+test (only asserted indirectly through `main()`, which didn't check the
+value) — added; and `build_props`/`build_pr_mirror_props` duplicated the
+identical `Merged`/`Commit` block — extracted to `pr_merge_fields()`, used by
+both. One finding was real but deliberately not fixed here — logged as
+**N-04** below rather than folded into this change.
+
+**Addendum, 2026-08-13 — finding 2's own fix was itself wrong; plus one finding this PR never covered.**
+Landed on PR #36 (still open at the time), same branch. Two more findings
+arrived: a review comment on PR #36 itself, and a parallel, more concrete
+finding from roofadvisor/GHL-MCP PR #1075 — the downstream repo that received
+this same template and independently found the same root cause. Both point at
+finding **2** above.
+
+**Finding 2's repo-wide key was a real fix for a real bug, and also itself a
+bug.** Stated plainly rather than glossed over: it swapped one race (a PR and
+the issue it closes carrying different concurrency keys) for a different,
+equally real one. GitHub's own docs on concurrency groups: "only a single job
+or workflow using the same concurrency group will run at a time" and, on what
+happens when a new run arrives, "by default, any existing `pending` job or
+workflow in the same concurrency group will be canceled and the new queued
+job or workflow will take its place" — unconditionally, not gated behind
+`cancel-in-progress`, which the same page describes as controlling only
+whether "any currently running job or workflow in the same concurrency
+group" is *additionally* canceled
+(docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs,
+fetched and quoted directly, not recalled). Under one repo-wide key, an event
+for unrelated issue B arriving while issue A's sync is still pending cancels
+A's pending run — with no later event guaranteed to ever correct A's row. The
+original A22 writeup even named this trade-off explicitly ("losing per-issue
+parallelism costs nothing real") — which was true for the *original* per-
+number race, and wrong for what replaced it.
+
+**The fix: a dedicated `resolve` job, keyed on the linked issue.** A
+concurrency `group:` expression is evaluated before any job runs, from the
+raw event payload, using only GitHub's expression syntax — it cannot itself
+regex-parse a PR body to find a linked issue. So `templates/github/
+notion-sync.yml` now splits into two jobs. `resolve` (no concurrency block of
+its own — read-only, no Notion/GitHub API call, safe to run unbounded in
+parallel) invokes `scripts/notion_sync.py resolve-issue`, a new CLI mode that
+prints the linked issue number for `GITHUB_EVENT_PATH`'s event (the issue's
+own number for an `issues` event, or the PR-body-parsed number for a
+`pull_request` event) and sets it as a job output. `sync` now declares
+`needs: resolve` and moved its `concurrency:` block from the workflow's top
+level down into the job itself:
+`group: notion-sync-${{ github.repository }}-${{ needs.resolve.outputs.issue_number }}`.
+That move is load-bearing, not cosmetic — confirmed against two separate
+GitHub docs pages, not assumed: the top-level `concurrency` key's expression
+"can only use `github`, `inputs` and `vars` contexts" (`needs` excluded;
+docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions),
+while `jobs.<job_id>.concurrency`'s "allowed expression contexts" are
+"`github`, `inputs`, `vars`, `needs`, `strategy`, and `matrix`" (`needs`
+included; same control-the-concurrency-of-workflows-and-jobs page as above).
+A job output could never have reached a top-level `concurrency:` block
+regardless of what computed it. The output-passing mechanics
+(`needs.<job_id>.outputs.<output_name>`, `jobs.<job_id>.outputs`, writing to
+`$GITHUB_OUTPUT`) were confirmed the same way against
+docs.github.com/en/actions/using-jobs/defining-outputs-for-jobs. An unlinked
+PR (resolve-issue prints nothing) falls back to `unlinked-${{ github.run_id }}`
+so it collides with nothing rather than piling every unlinked PR of the repo
+into one bucket.
+
+Reasoned precisely about the concrete example roofadvisor/GHL-MCP PR #1075
+gave — PR #50 whose body closes #20, and the `issues.closed` event GitHub
+fires when #20 is actually closed — and then *ran* `resolve-issue` for both
+events plus an unrelated `issues.labeled` for #99, rather than reasoning
+about it in the abstract:
+
+| formula | issues#20 | pull_request#50 (closes #20) | issues#99 |
+|---|---|---|---|
+| pre-A22 (`github.event.issue.number \|\| github.event.pull_request.number`) | `notion-sync-20` | `notion-sync-50` | `notion-sync-99` |
+| A22 (`github.repository`, repo-wide) | `notion-sync-roofadvisor/GHL-MCP` | `notion-sync-roofadvisor/GHL-MCP` | `notion-sync-roofadvisor/GHL-MCP` |
+| this fix (`github.repository`-`needs.resolve.outputs.issue_number`) | `notion-sync-roofadvisor/GHL-MCP-20` | `notion-sync-roofadvisor/GHL-MCP-20` | `notion-sync-roofadvisor/GHL-MCP-99` |
+
+Pre-A22: #20 and #50 differ (the original race). A22: #20 and #50 match
+(that race fixed) but #20 and #99 *also* match (the new bug — unrelated rows
+sharing one pending slot). This fix: #20 and #50 still match, and #20 and
+#99 now differ. Both properties hold simultaneously, which is the actual bar
+("two events touching the same row must serialize; two events touching
+different rows must not block each other"), not a re-run of the same
+trade-off under a different name.
+
+**Finding 2's regex vocabulary — incomplete, separately.** The linked-issue
+regex accepted only `closes|fixes|resolves` — the present-tense-plural forms
+— against GitHub's actual nine-keyword vocabulary (`close`, `closes`,
+`closed`, `fix`, `fixes`, `fixed`, `resolve`, `resolves`, `resolved`, all
+case-insensitive). Reproduced the reviewer's exact three examples against
+the old pattern first: `Fix #123`, `Close #123`, and `Resolved #123` each
+returned no match. Extracted the parsing into a single `parse_linked_issue()`
+used by both `main()` (unchanged behavior otherwise) and the new
+`resolve-issue` CLI mode above, so the two can never drift on which issue a
+PR links — one was exactly Finding 1's own requirement ("This regex is also
+exactly what Finding 1's job-output resolution step needs to use"). Same
+three examples against the new pattern: all three now resolve to `123`.
+Negative cases checked deliberately, not just the positive ones: `\b` before
+the keyword alternation stops a keyword that is merely a word's suffix
+(`unresolved #123`) or infix (`prefixes #99`) from matching, and the existing
+required `\s+` before the `#` stops a keyword with trailing text glued to it
+(`closest #1`) from matching either — all three verified to still return
+`None`.
+
+**Red-then-green, both fixes, captured directly.** All 13 new checks in
+`tests/notion_sync_test.sh` were run against the pre-addendum
+`scripts/notion_sync.py` and `templates/github/notion-sync.yml` first (`git
+stash` of just those two files, new test file left in place) and observed to
+fail: the YAML-structure checks with `KeyError: 'resolve'` and `jobs=
+['sync']` (no `resolve` job existed yet), the resolve-issue CLI checks with
+`KeyError: 'NOTION_TOKEN'` (the mode did not exist; invoking `resolve-issue`
+just ran into the top-of-file env var reads and crashed), the keyword-vocab
+checks with `AttributeError: module 'notion_sync' has no attribute
+'parse_linked_issue'`, and the end-to-end regex check with the literal
+pre-fix output, `PR has no linked issue — nothing to sync.` 13 failed, 14
+(pre-existing, untouched) passed. Stash popped, same 13 re-run green, 27
+passed, 0 failed. `scripts/verify.sh`: 162 → 174 assertions (measured both
+ends directly, not assumed from the number above), all ten gates still
+clean.
+
+**Not done here, and not claimed:** the actual GitHub Actions run. Per the
+kit's own non-negotiables, that's not achievable from an agent session —
+the evidence above is expression-semantics citations plus the real
+`resolve-issue` subprocess run for every example, not a live workflow
+dispatch. Re-propagation to the three downstream repos (including
+roofadvisor/GHL-MCP, whose PR #1075 supplied the concrete example) is where
+that gets its first live-Actions exercise.
+
+---
+
 ### A20 — the agents are scaffolded but not selectable, and never audited · ✅ built in 1.23.0
 
 All three gaps closed together. **(1)** The plan preview's `AGENTS:` line
@@ -625,6 +882,7 @@ opt-in — not with the project. Still needs O5 before it can move.
 | N-01 | Migrate sync to Notion Workers when syncs/webhooks leave beta, **or at the third repo** — whichever first. Full analysis in `templates/notion/SYNC_ARCHITECTURE.md`. Four invariants make it a swap not a rewrite. |
 | N-02 | `hub+local` reconciliation is documented (`/notion-sync` Mode 5) but never exercised — no project uses the mode yet |
 | N-03 | Work DB `Repo` select options must be added as each repo is wired; sync fails on an unknown option |
+| N-04 | `scripts/notion_sync.py`'s `call()` has no retry/backoff on 429/5xx (A22, `integration-auditor`). Not "low volume justifies it" alone — `NOTION_TOKEN` is an **org-level** secret shared across every repo wired to the Work DB (≥3 today), and Notion rate-limits per-integration/token, not per-repo, so simultaneous activity across repos can plausibly 429 with no self-healing today. Real gap, not urgent yet (B-01 blocks the Work DB even existing). **If picked up:** retry only on a definitive 429/5xx response, never on `URLError`/`TimeoutError` where the outcome is ambiguous — and never blindly retry the `POST /pages` create without re-running `find_row()` first, or a retried create after an ambiguous timeout duplicates the row. |
 
 ---
 

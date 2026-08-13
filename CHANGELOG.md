@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.23.5 — notion-sync templates: five review findings on the first real-world use
+
+`templates/github/claude-code-review.yml`, `templates/github/notion-sync.yml`,
+and `scripts/notion_sync.py` got their first outside review after being
+copied byte-identical into three live RoofAdvisor repos — and their first
+test file, `tests/notion_sync_test.sh` (14 checks). **The serious one:**
+every `pull_request` event built a synthetic issue from the PR itself
+(title, timestamp, labels) and sent it unconditionally, even when a real,
+correct Notion row already existed for the linked issue — a PR whose title
+or labels differ from its issue (the normal case) silently overwrote the
+issue's own fields on every open, merge, or close. Fixed by splitting the
+write path: an existing row gets only the fields a PR event actually owns
+(`build_pr_mirror_props`); a not-yet-synced issue gets seeded from the real
+GitHub issue (`fetch_issue`, using the `GITHUB_TOKEN` the workflow already
+passed in but the script never read) instead of a fabrication. Also: a PR
+closed without merging no longer gets stuck "In Review" forever (three
+states, not two — merged / closed-unmerged / still open); `claude-code-review.yml`
+now triggers on `ready_for_review`, not just `opened`/`synchronize`, so a
+draft PR that goes ready with no further commit actually gets reviewed;
+`notion-sync.yml`'s concurrency key is repo-wide instead of per-issue-number,
+so a PR and the issue it closes can no longer race on the same row; and
+`urlopen()` in `notion_sync.py` carries an explicit timeout so a stalled
+Notion (or GitHub) connection fails the job promptly instead of occupying it
+for hours. All five red-then-green: the harness was written and run against
+the unmodified files first, so every failure below is a captured pre-fix
+transcript, not a reconstruction — see `docs/BACKLOG.md` A22 for the exact
+values. `scripts/verify.sh`: 147 → 162 assertions, all ten gates clean.
+
 ## 1.23.4 — A20: agents are selected, not assumed, and their absence is audited
 Three gaps in the same shape, found in one 2026-08-12 audit. **The plan the user approves was lying by omission:** the interview's confirmation table listed the three conditional agents but not `verify-runner`, even though `LIFECYCLE.md`, `CADENCE.md`, and `ship-it/SKILL.md` all treat it as unconditional — the one agent that is *always* there was the one missing from what the user saw. `SKILL.md`'s `AGENTS:` line now reads `verify-runner (always-on)` separately from the conditional agents it derives. **Selection had no rule at all:** modules have an explicit interview-answer mapping; agents had nothing, and step 7 said "only the selected agents" without saying how anything got selected. Now: `schema-reviewer` / `integration-auditor` / `contract-drift-checker` are selected exactly when `database` / `data-integration` / `contracts` (respectively) is in `decided_modules` — not a new rule, just wiring up the pairing `ENFORCEMENT.md`'s honest-audit table already stated. Documented in `module-catalog.md`'s new *Agent Catalog* section and applied at `/project-init` step 3.7. **And nothing audited agent presence** — the A11 shape one layer up: a repo can lose `.claude/agents/*.md` files (deletion, a bad `.gitignore` entry, a sparse checkout) and nothing noticed. `scripts/check_agents.py` (new, registered as **G-07**) derives the expected agent set from which `.claude/rules/*.md` modules a repo actually holds, and flags any expected agent file that is missing or present-but-empty; not a CI gate, for the same reason `check_companions.py` isn't — a repo that never adopted the kit should not fail a check that assumes it did. `/project-audit`'s Enforcement layer runs it next to the A11 guard-local check it mirrors. `tests/agent_presence_test.sh` — 25 cases, later 30 after a review follow-up (adoption detection keyed on `.claude/.framework-state.json` instead of `.claude/rules/` presence, and a directory-masquerading-as-a-file case) — proves it red-then-green for all three conditional agents, the unconditional floor, the empty-file edge case, an unheld-module negative case, and G-03 fail-loud paths; wired into both loops of `scripts/verify.sh`.
 

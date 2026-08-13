@@ -13,13 +13,68 @@ permissions:
   issues: read
   pull-requests: read
 
-concurrency:
-  # Serialize per issue so two events can't race on the same Notion row.
-  group: notion-sync-${{ github.event.issue.number || github.event.pull_request.number }}
-  cancel-in-progress: false
-
 jobs:
+  # Resolves which Notion row this event touches, before `sync` (below)
+  # claims a concurrency slot for it. A PR event and the issues.closed event
+  # it triggers by closing a linked issue carry different numbers
+  # (github.event.pull_request.number vs github.event.issue.number) — a
+  # concurrency key built from either one directly lets the two race on the
+  # same Notion row. The fix is to key on the *linked issue* instead, but a
+  # concurrency `group:` expression is evaluated before any job runs, from
+  # only the raw event payload, using GitHub's expression syntax — it cannot
+  # regex-parse a PR body. So that parse has to happen in an actual job
+  # first, with the result threaded in as a job output.
+  #
+  # No concurrency block here on purpose: this job is read-only (parses the
+  # event payload already on disk; no Notion or GitHub API call), so any
+  # number of these can run at once safely.
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      issue_number: ${{ steps.resolve.outputs.issue_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - id: resolve
+        run: |
+          number="$(python3 .github/scripts/notion_sync.py resolve-issue)"
+          if [ -z "$number" ]; then
+            # No linked issue (an issues event always resolves; an unlinked
+            # PR does not). Fall back to this run's own id so an unlinked PR
+            # gets a group nothing else can collide with, instead of piling
+            # every unlinked PR of the repo into one shared bucket.
+            number="unlinked-${{ github.run_id }}"
+          fi
+          echo "issue_number=$number" >> "$GITHUB_OUTPUT"
+
   sync:
+    needs: resolve
+    # Job-level concurrency, not workflow-level: a top-level `concurrency:`
+    # key's expression may only use the github/inputs/vars contexts and
+    # cannot see `needs` at all, so a job output could never reach it. Only
+    # `jobs.<job_id>.concurrency` accepts the needs context (confirmed
+    # against GitHub's own docs, both the concurrency-control page's
+    # "Allowed expression contexts" for jobs.<job_id>.concurrency and the
+    # workflow-syntax reference's narrower list for the top-level key) —
+    # which is exactly why this block had to move down into the job.
+    #
+    # Keying on the linked issue makes a PR and the issue it closes resolve
+    # to the *same* group (both go through `resolve` above) and therefore
+    # serialize against each other; two events for unrelated issues resolve
+    # to different groups and run in parallel. The repo-wide key this
+    # replaced serialized everything, including unrelated issues — and
+    # GitHub cancels a group's existing *pending* run the moment a new one
+    # is queued behind it ("any existing pending job or workflow in the same
+    # concurrency group will be canceled and the new queued job or workflow
+    # will take its place") regardless of cancel-in-progress, which only
+    # additionally governs the *running* one. Under the repo-wide key, an
+    # event for unrelated issue B could cancel issue A's still-pending sync
+    # with nothing left to ever retry it.
+    concurrency:
+      group: notion-sync-${{ github.repository }}-${{ needs.resolve.outputs.issue_number }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
