@@ -24,7 +24,7 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **150** | hooks (46) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (32) + companions (18) |
+| Tests | **154** | hooks (50) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (32) + companions (18) |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 44 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -372,6 +372,87 @@ anchored, generically, as a regression guard. All three met —
 step, if picked up: either document "launch from the repo root" as a stated
 operational constraint with a startup self-check, or extend
 `fix/plugin-declared-hooks`' mechanism to this repo's own dogfood hooks.
+
+**Follow-up finding (review on PR #39 itself, same day): anchoring alone was
+unquoted, and that is a distinct, worse bug.** A reviewer on PR #39
+(discussion_r3776532413) caught what item 1's fix shipped:
+`"command": "${CLAUDE_PROJECT_DIR}/hooks/guard.sh"` anchors the path but
+never quotes it. `${CLAUDE_PROJECT_DIR}` is a real filesystem path and can
+legitimately contain a space (e.g. a two-word macOS account name); Claude
+Code executes each hook command with `bash -c "$command"` (the same
+mechanism `tests/hooks_test.sh:124` uses to test resolution) — an unquoted
+expansion in that context word-splits on whitespace like any other unquoted
+shell variable.
+
+*Reproduced, RED, via the identical `bash -c "$cmd"` mechanism:* a scratch
+project directory `.../has space/in the path` with `hooks/` symlinked in,
+`CLAUDE_PROJECT_DIR` set to it, and the command string `.claude/settings.json`
+shipped at the time (pre-quoting) — `${CLAUDE_PROJECT_DIR}/hooks/guard.sh` —
+run exactly as Claude Code would run it: `bash: .../has: No such file or
+directory`, exit 127. The path silently split at the space; `has` (a
+fragment) was the attempted executable.
+
+*Fail-open, proven rather than assumed:* exit 127 is not exit 2. Confirmed
+against `code.claude.com/docs/en/hooks.md`: for `PreToolUse` (guard.sh,
+rule-zero.sh) and `Stop` (done-check.sh), **exit code 2 is the only exit code
+that blocks through the code alone** — "any other exit code doesn't block on
+its own … it's a non-blocking error … the action proceeds," and this
+explicitly includes the command-not-found case: "when the script path
+doesn't exist or isn't executable, the shell exits with a code like 127 …
+For most hook events, the action proceeds." Demonstrated directly, not just
+cited: the same force-push command (`git push --force origin main`) that the
+working *quoted* form correctly blocks (exit 2, stderr `BLOCKED by f4d-kit
+[C-02]: force-push is human-only.`) produces exit 127 and **no BLOCKED
+message at all** through the unquoted form on the identical spaced path —
+guard.sh's own fail-loud logic (G-03) never gets a chance to run, because
+bash fails to resolve the executable a layer below guard.sh's own code. The
+kit's fail-loud doctrine is implemented correctly *inside every hook
+script*; this bug lived one level outside all of them, in the anchoring
+string itself, where no script-level check could see it. Six for six —
+`session-context.sh`, `guard.sh`, `rule-zero.sh`, `format.sh`,
+`verify-record.sh`, `done-check.sh` — were all shipped unquoted, so all six
+were exposed. The two that matter most for gating, `guard.sh` (PreToolUse)
+and `done-check.sh` (Stop), both fail open under this bug — a real deny
+silently becomes a pass. `format.sh`/`verify-record.sh` (PostToolUse) can
+never block regardless of this bug, and `session-context.sh` (SessionStart)
+likewise never blocks — for those three the cost is lost telemetry/formatting
+rather than a defeated gate, but `guard.sh` and `done-check.sh` are exactly
+what item 1 above was written to protect.
+
+*Fixed:* every command in `.claude/settings.json` now wraps the entire
+expanded path in a literal pair of double quotes —
+`"command": "\"${CLAUDE_PROJECT_DIR}/hooks/guard.sh\""`, where the JSON `\"`
+decodes to a literal `"` character, so bash sees
+`"${CLAUDE_PROJECT_DIR}/hooks/guard.sh"` as a single quoted word regardless
+of what the expansion contains. Verified end-to-end, not eyeballed: `python3
+json.load` on the file decodes each `command` value to the literally-quoted
+string, and that decoded string run through `bash -c` against the same
+spaced fixture resolves and executes (exit 0 for the non-denying hooks, the
+correct verdict exit code for guard.sh/rule-zero.sh against payloads that
+should deny).
+
+*Tests (red-then-green, additive):* `tests/hooks_test.sh` § *settings.json
+hook commands survive a project directory containing a space* — builds a
+project directory with a literal space in it, symlinks `hooks/` into it,
+and: (RED) reconstructs the pre-fix form by stripping the quotes the fix
+adds and shows it still word-splits (127) on the spaced path; (GREEN) shows
+every command actually shipped resolves (no 127) on the identical spaced
+path; (GREEN) shows guard.sh still returns exit 2 with the BLOCKED message
+for a force-push payload through the spaced path; (RED) shows the
+reconstructed unquoted form silently drops that same deny (127, no BLOCKED
+message) on the identical payload and path. The existing generic anchoring
+assertion (§ *settings.json hook command resolution*) is tightened to
+require the quoted form, not just the anchored one. Confirmed these cases
+actually catch a regression, not just describe one: reverted
+`.claude/settings.json` to the pre-quoting form, re-ran, watched the five
+now-quoting-aware assertions fail exactly as predicted, restored, watched
+them pass again. 46 → 50 hook tests; `scripts/verify.sh` green.
+
+**Done-when (item 1, revised):** anchoring alone was insufficient. Full
+statement now: every command in `.claude/settings.json` is wrapped in a
+literal quoted path, proven to resolve through a project directory
+containing a space, and proven not to silently drop a real deny under the
+same condition. Met, per the tests above.
 
 **Files:** `.claude/settings.json`, `tests/hooks_test.sh`
 

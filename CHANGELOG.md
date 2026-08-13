@@ -24,6 +24,26 @@ gains three cases reproducing the exact resolution mechanism `.claude/settings.j
 goes through (previous coverage invoked hooks via an absolute test-harness
 path, sidestepping this). 43 → 46 hook tests, 147 → 150 total.
 
+**Same-day review fix: the anchoring above shipped unquoted.** A reviewer on
+this PR caught it before merge: `${CLAUDE_PROJECT_DIR}` is a real path that
+can legitimately contain a space, an unquoted expansion word-splits in that
+case, and Claude Code runs every hook command via `bash -c "$command"` — so
+all six hooks would silently stop resolving (exit 127) on a project checked
+out under a spaced path. Proven **fail-open**, not just asserted: per
+`code.claude.com/docs/en/hooks.md`, exit 2 is the only exit code that blocks
+`PreToolUse`/`Stop` hooks — a 127 is a non-blocking error and the tool call
+proceeds. Demonstrated directly with `guard.sh`: a force-push command that the
+quoted form correctly blocks (exit 2, BLOCKED) produces exit 127 and no
+BLOCKED message at all through the unquoted form on a spaced path — the guard
+never starts, so its own fail-loud (G-03) logic never gets a chance to run.
+Fixed: every command now wraps the full expanded path in a literal quoted
+pair (`"command": "\"${CLAUDE_PROJECT_DIR}/hooks/guard.sh\""`), verified via
+`json.load` + `bash -c` end-to-end, not eyeballed. `tests/hooks_test.sh` gains
+a spaced-project-directory fixture (red-then-green, plus a guard.sh
+deny-survives-the-space hard-property case) and the existing generic
+anchoring assertion now requires the quoted form. 46 → 50 hook tests,
+150 → 154 total. Full evidence: `docs/BACKLOG.md` A23.
+
 ## 1.22.2 — round-7 review fixes; S-04 honestly re-opened
 Seven findings, all real. The one that matters most is a reversal: **S-04 goes back to tracked debt** — shipping an `assertNever` helper nobody is required to import enforces nothing, and marking it done was scoreboard inflation; its promote-when is now eslint `switch-exhaustiveness-check` / mypy strict-enum integration in the scaffold verify (44 enforced, 8 debts — the honest numbers). Recall fixes, re-measured on GHL-MCP: block-bodied promise catches (`.catch(() => { return []; })`) now caught (62→64) and log-hygiene scans complete multiline calls (1→5 — a formatter putting `req.body` on the next line no longer hides it). Correctness fixes: C-08 counts `async def test_` and compares from the **merge base** (tests added to main after branching are not the PR's deletions); G-05 enumerates baseline fixture paths so an outright-deleted fixture file is the strongest case removal, not an invisible one; the conformance MANDATED list includes the three newest gate scripts.
 
