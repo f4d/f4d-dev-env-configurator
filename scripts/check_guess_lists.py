@@ -17,13 +17,18 @@ import subprocess
 import sys
 from collections import defaultdict
 
-SKIP = (".git", "node_modules", ".venv", "dist", "build", "fixtures", "__fixtures__", "testdata")
 EXT = (".py", ".ts", ".tsx", ".js", ".jsx")
 LIST_RE = re.compile(r"[\[\(]\s*((?:['\"][A-Za-z0-9_\- ]{2,40}['\"]\s*,\s*){2,}['\"][A-Za-z0-9_\- ]{2,40}['\"])\s*,?\s*[\]\)]")
 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import repo_root as root  # noqa: E402
+from _common import SKIP_DIRS, repo_root as root  # noqa: E402
+
+# Additive (A21): fixture/test-data dirs are not source under S-05's remit —
+# extend the shared skip set rather than hand-copy it. This is the scanner
+# that flagged the original SKIP-tuple duplication (see _common.py); it must
+# not itself keep a hand-rolled copy.
+SKIP = SKIP_DIRS | {"fixtures", "__fixtures__", "testdata"}
 
 
 def main():

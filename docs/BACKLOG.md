@@ -270,27 +270,32 @@ conformance assertion that every workflow step 10 names actually exists.
 
 ---
 
-### A21 — six scanners duplicate the SKIP tuple `_common.py` exists to hold · **medium** · effort S
+### A21 — six scanners duplicate the SKIP tuple `_common.py` exists to hold · ✅ built in 1.22.4
 
-**Why:** `scripts/_common.py` exists *because* `check_guess_lists.py` flagged
-`git rev-parse --show-toplevel` duplicated across four scripts — its docstring
-cites S-05, "extract one dependency-free leaf both sides import, never copy".
-Only `check_statelessness.py` imports `SKIP_DIRS`. Six others define their own
-near-identical `SKIP` tuple, and they disagree: only statelessness and
-guess-lists filter dot-directories; `check_test_count.py` skips just
-`.git`/`.venv`/`.next` by exact name; `check_fixtures.py` uses a substring match
-and excludes neither `build` nor `.next`.
+Consolidated all seven scanners onto `_common.SKIP_DIRS` (now a `frozenset` so
+a genuine local need extends it additively — e.g. `SKIP_DIRS | {"migrations",
+"db", "sql"}`, documented inline — instead of hand-copying it; five scanners
+carry such an extension). `check_fixtures.py`'s old substring dirpath match
+never pruned `dirnames` at all and walked every tree in full; it now prunes
+for real from the shared set. Every scanner skips dot-directories by default,
+matching `check_statelessness.py`/`check_guess_lists.py`'s prior behavior.
+Measured: a fixture of 3 real tests plus 80 phantom files dropped into a
+`.cache/` directory took `check_test_count`'s count from **3 → 83** before the
+fix and **3 → 3** after (the kit's own repo shows the same class of drift: 13
+real cases at the prior tip — the backlog's own baseline, independently
+reconfirmed). The new `tests/scanner_agreement_test.sh` — one trigger per
+scanner (ST-01/D-06/S-07/O-05/S-03/S-05/I-02/C-08) inside a single shared
+dot-directory — read **2 pass / 6 fail** against the pre-fix code (only
+statelessness and guess-lists, which already filtered dot-directories, came
+back green) and **8 pass / 0 fail** after; wired into `verify.sh`'s harness
+loop (147 → 155 assertions), which stays green throughout, and
+`check_guess_lists` (S-05, the gate this whole item is about) still reports
+zero findings against the kit's own repo post-refactor. REGISTRY.md checked —
+no row describes SKIP-directory behavior at the implementation level, so none
+needed updating. A17 (guess-list gate misses object-member lists, still open)
+touches `check_guess_lists.py` too and should rebase onto this once it lands.
 
-Measured consequence: 80 real files in a dot-prefixed directory took the kit's
-own counted test cases from 13 to **345**, because `check_test_count` walked in
-while other gates did not. The scanners do not agree on what the repo is.
-
-**Build:** consolidate onto `_common.SKIP_DIRS`, extending it where a scanner
-genuinely needs more (raw_sql's migrations/db/sql) via a documented extension
-rather than a copy. Make dot-directory handling consistent and deliberate. Add a
-test asserting every scanner agrees on one fixture tree.
-
-**Files:** `scripts/_common.py`, `scripts/check_{catch_empty,log_hygiene,pure_imports,raw_sql,guess_lists,test_count,fixtures}.py`
+**Files:** `scripts/_common.py`, `scripts/check_{catch_empty,log_hygiene,pure_imports,raw_sql,guess_lists,test_count,fixtures}.py`, `tests/scanner_agreement_test.sh`, `scripts/verify.sh`
 
 ---
 
@@ -446,7 +451,6 @@ NOW      A18  scaffolded repos have a DEAD enforcement layer   <- CRITICAL, bloc
          B-02 Brand Torus path   (blocked on Ian)
 
 NEXT     A20  agent wiring (verify-runner absent, no selection rule, never audited)
-         A21  SKIP tuple dedup — the kit's own S-05 violation
          A17  object-member guess-list gate
 
 SOON     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
