@@ -111,6 +111,22 @@ T6="$(mktemp -d)"
 ( cd "$T6" && python3 "$KIT/scripts/check_test_count.py" 2>/dev/null | grep -q "NOTE" ); check "C-08 states not-evaluable without BASE_REF" 0 $?
 rm -rf "$T6"
 
+# ---------- C-08 baseline/worktree skip-dir agreement (PR #33 review finding) ----------
+# count_worktree() prunes SKIP_DIRS/dot-dirs (A21); count_at(ref) read every
+# tracked path from `git ls-tree` unfiltered. A tracked test file sitting
+# under a dot-directory at BASE_REF (e.g. .ci/test_hidden.py) was therefore
+# counted in the baseline but never in the worktree, so a completely
+# unchanged PR reported a false test-count regression (repro'd: tests 1 -> 0).
+T6b="$(mktemp -d)"
+( cd "$T6b" && git init -q && git config user.email t@t && git config user.name t \
+  && mkdir -p tests .ci \
+  && printf 'def test_real():\n    pass\n' > tests/test_real.py \
+  && printf 'def test_hidden():\n    pass\n' > .ci/test_hidden.py \
+  && git add -A && git commit -qm "chore: one real test, one dot-dir test" && git branch -M main )
+( cd "$T6b" && BASE_REF=main python3 "$KIT/scripts/check_test_count.py" >/dev/null 2>&1 ); check "C-08 green (repro): unchanged PR does not regress over a skip-dir baseline test" 0 $?
+( cd "$T6b" && rm tests/test_real.py && BASE_REF=main python3 "$KIT/scripts/check_test_count.py" >/dev/null 2>&1 ); check "C-08 red: real test deletion still blocks despite a skip-dir baseline test" 1 $?
+rm -rf "$T6b"
+
 # ---------- G-05 fixture case-diff (in check_fixtures) ----------
 T7="$(mktemp -d)"
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -123,6 +139,26 @@ NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 ( cd "$T7" && BASE_REF=main python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 red: fixture case deletion blocks" 1 $?
 ( cd "$T7" && BASE_REF=main PR_BODY="fixture-case-removed-ok: case2/3 duplicated case1 after vendor collapsed the field" python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 green: stated waiver passes" 0 $?
 rm -rf "$T7"
+
+# ---------- G-05 baseline skip-dir agreement (PR #33 review finding) ----------
+# find_fixture_dirs() prunes SKIP_DIRS/dot-dirs (A21); g05_case_diff()'s own
+# baseline enumeration (`git ls-tree` against BASE_REF) did not, so a fixture
+# tracked under a dot-directory (e.g. .cache/vendor/fixtures/happy.json) that
+# find_fixture_dirs() now declares out of scope still failed G-05 when
+# deleted, because the baseline list never excluded it in the first place.
+T7b="$(mktemp -d)"
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+( cd "$T7b" && git init -q && git config user.email t@t && git config user.name t
+  mkdir -p vendorx/fixtures .cache/vendor/fixtures
+  for n in happy empty rate_limited malformed; do
+    printf '{"_meta":{"recorded_at":"%s","source":"t"},"case1":1,"case2":2}' "$NOW" > "vendorx/fixtures/$n.json"
+  done
+  printf '{"_meta":{"recorded_at":"%s","source":"t"},"case1":1,"case2":2}' "$NOW" > ".cache/vendor/fixtures/happy.json"
+  git add -A && git commit -qm "chore: visible fixtures plus a dot-dir fixture" && git branch -M main
+  rm -rf .cache )
+( cd "$T7b" && BASE_REF=main python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 green (repro): deleting an out-of-scope dot-dir fixture is not a case-removal" 0 $?
+( cd "$T7b" && rm vendorx/fixtures/empty.json && BASE_REF=main python3 "$KIT/scripts/check_fixtures.py" >/dev/null 2>&1 ); check "G-05 red: real (non-skip-dir) fixture deletion still blocks" 1 $?
+rm -rf "$T7b"
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

@@ -24,7 +24,7 @@ FIXTURE_DIRS = ("fixtures", "__fixtures__", "testdata", "cassettes")
 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import SKIP_DIRS, repo_root as root  # noqa: E402
+from _common import SKIP_DIRS, filter_skipped_paths, repo_root as root  # noqa: E402
 
 
 def find_fixture_dirs(base):
@@ -140,6 +140,12 @@ def g05_case_diff(dirs):
                                     capture_output=True, text=True, check=True).stdout.splitlines()
     except subprocess.CalledProcessError:
         base_files = []
+    # Agree with find_fixture_dirs()'s SKIP_DIRS/dot-dir walk pruning, or a
+    # fixture that lived under a directory this run declares out of scope
+    # (e.g. a dot-prefixed vendor cache) still reads as a G-05 case-removal
+    # when its directory disappears — a false positive on a path nothing
+    # above this ever considered in scope.
+    base_files = filter_skipped_paths(base_files)
     fixture_seg = re_mod.compile(r"(^|/)(fixtures|__fixtures__|testdata|cassettes)(/|$)")
     for bf in base_files:
         if not bf.endswith(".json") or not fixture_seg.search(bf):
