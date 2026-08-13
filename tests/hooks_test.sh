@@ -3,7 +3,8 @@
 # A guard that has never been seen to fail is not a guard.
 set -uo pipefail
 HOOKS="$(cd "$(dirname "$0")/../hooks" && pwd)"
-KIT_LOG_PATH="$(cd "$HOOKS/.." && pwd)/.claude/.enforcement-log"
+KIT="$(cd "$HOOKS/.." && pwd)"
+KIT_LOG_PATH="$KIT/.claude/.enforcement-log"
 KIT_LOG_BEFORE="$(cat "$KIT_LOG_PATH" 2>/dev/null | cksum)"
 pass=0; fail=0
 
@@ -70,6 +71,158 @@ else echo "  FAIL  writes telemetry for every session"; fail=$((fail+1)); fi
 if (cd /tmp && bash "$HOOKS/session-context.sh" >/dev/null 2>&1); then
   echo "  PASS  exits 0 outside any git repo"; pass=$((pass+1))
 else echo "  FAIL  exits 0 outside any git repo"; fail=$((fail+1)); fi
+
+echo "settings.json hook command resolution (A23)"
+# PR #29 anchored ${CLAUDE_PLUGIN_ROOT} -> repo-relative paths (hooks/x.sh).
+# That is not enough: a repo-relative command only resolves while the
+# spawning shell's cwd IS the repo root, and Claude Code spawns each hook
+# command with cwd = wherever the session currently is — which drifts the
+# moment the agent runs `cd`. Every case above invokes hooks/*.sh directly
+# through the absolute $HOOKS var, which sidesteps exactly this mechanism —
+# the reviewer's finding on PR #29's own follow-up. These cases instead read
+# the REAL .claude/settings.json and execute its command strings the way
+# Claude Code does: CLAUDE_PROJECT_DIR set on the process, "bash -c
+# \"\$command\"", cwd deliberately NOT the repo root. Live-verified on CLI
+# 2.1.220 (docs/BACKLOG.md A23): a PreToolUse:Bash hook wired with a bare
+# relative path fired once from root, then silently never fired again the
+# moment the session `cd`'d one level down — this harness reproduces that
+# exact resolution step, not just the hook script's own internal logic.
+sjr=$(mktemp -d); ( cd "$sjr" && git init -q )
+mkdir -p "$sjr/deep/er"
+
+# RED: the pre-1.23.3 bare-relative form, reconstructed, from a non-root cwd.
+( cd "$sjr/deep/er" && CLAUDE_PROJECT_DIR="$KIT" bash -c "hooks/session-context.sh" ) >/dev/null 2>&1
+got=$?
+if [ "$got" -eq 127 ]; then
+  echo "  PASS  RED: bare relative command fails to resolve from a non-root cwd (got exit 127)"; pass=$((pass+1))
+else
+  echo "  FAIL  RED: bare relative command should fail to resolve (127) from a non-root cwd, got $got"; fail=$((fail+1))
+fi
+
+# GREEN, precise: the identical cwd-drift scenario the RED case just proved
+# broken, this time through the ${CLAUDE_PROJECT_DIR}-anchored form.
+( cd "$sjr/deep/er" && CLAUDE_PROJECT_DIR="$KIT" bash -c '${CLAUDE_PROJECT_DIR}/hooks/session-context.sh' ) >/dev/null 2>&1
+got=$?
+if [ "$got" -eq 0 ]; then
+  echo "  PASS  GREEN: \${CLAUDE_PROJECT_DIR}-anchored command resolves from the same non-root cwd where the bare form failed"; pass=$((pass+1))
+else
+  echo "  FAIL  GREEN: anchored command should resolve (exit 0) from a non-root cwd, got $got"; fail=$((fail+1))
+fi
+
+# GREEN, generic: every command this repo actually ships in .claude/settings.json
+# — a regression guard, not a copy. Verdict per hook is irrelevant here (each
+# hook's own business logic is already covered above via $HOOKS); the only
+# thing this loop can catch is resolution, and "command not found" is exit 127
+# everywhere this harness runs.
+commands=$(python3 -c "
+import json
+d = json.load(open('$KIT/.claude/settings.json'))
+for entries in d.get('hooks', {}).values():
+    for entry in entries:
+        for h in entry.get('hooks', []):
+            if h.get('type') == 'command':
+                print(h['command'])
+" 2>/dev/null)
+settings_fail=0; settings_count=0
+while IFS= read -r cmd; do
+  [ -z "$cmd" ] && continue
+  settings_count=$((settings_count+1))
+  # Anchored AND quoted: the whole expanded path must be wrapped in a literal
+  # pair of double quotes, or an unquoted ${CLAUDE_PROJECT_DIR} word-splits
+  # the instant the project directory contains a space (PR review finding).
+  case "$cmd" in
+    '"${CLAUDE_PROJECT_DIR}/'*'"') : ;;
+    *) echo "  FAIL  settings.json ships a command not anchored+quoted as \"\${CLAUDE_PROJECT_DIR}/...\": $cmd"; settings_fail=1; continue ;;
+  esac
+  echo '{}' | ( cd "$sjr/deep/er" && CLAUDE_PROJECT_DIR="$KIT" bash -c "$cmd" ) >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 127 ]; then
+    echo "  FAIL  settings.json command did not resolve from a non-root cwd: $cmd"; settings_fail=1
+  fi
+done <<< "$commands"
+if [ "$settings_fail" -eq 0 ] && [ "$settings_count" -gt 0 ]; then
+  echo "  PASS  GREEN: all $settings_count settings.json hook commands resolve from a non-root cwd"; pass=$((pass+1))
+else
+  fail=$((fail+1))
+fi
+rm -rf "$sjr"
+
+echo "settings.json hook commands survive a project directory containing a space"
+# Reviewer finding on this same PR (discussion_r3776532413): every case above
+# sets CLAUDE_PROJECT_DIR="$KIT", which never contains a space, so the section
+# above proved cwd-independence but never actually exercised quoting — an
+# unquoted ${CLAUDE_PROJECT_DIR} expansion word-splits on whitespace, and
+# CLAUDE_PROJECT_DIR is a real filesystem path that can legitimately contain
+# one (e.g. a two-word macOS account name). Build an actual spaced project
+# directory and route the real settings.json command strings through it via
+# the identical bash -c "$cmd" mechanism used above and at tests/hooks_test.sh:124.
+spk=$(mktemp -d)
+spaced="$spk/has space/in the path"; mkdir -p "$spaced"
+ln -s "$HOOKS" "$spaced/hooks"
+scwd="$spk/cwd"; mkdir -p "$scwd"; ( cd "$scwd" && git init -q ); mkstate "$scwd"
+
+space_red_fail=0; space_red_count=0
+space_green_fail=0; space_green_count=0
+while IFS= read -r cmd; do
+  [ -z "$cmd" ] && continue
+
+  # RED: reconstruct the pre-fix form by stripping every literal '"' the fix
+  # below adds, and confirm THAT form still breaks on a spaced path — proves
+  # this fixture actually exercises the reviewer's bug, not just the fix.
+  unquoted_cmd=${cmd//\"/}
+  space_red_count=$((space_red_count+1))
+  echo '{}' | ( cd "$scwd" && CLAUDE_PROJECT_DIR="$spaced" bash -c "$unquoted_cmd" ) >/dev/null 2>&1
+  got=$?
+  if [ "$got" -ne 127 ]; then
+    echo "  FAIL  RED: unquoted form should word-split and fail (127) on a spaced project dir: $unquoted_cmd (got $got)"
+    space_red_fail=1
+  fi
+
+  # GREEN: the actual shipped (quoted) command, same spaced project dir.
+  space_green_count=$((space_green_count+1))
+  echo '{}' | ( cd "$scwd" && CLAUDE_PROJECT_DIR="$spaced" bash -c "$cmd" ) >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 127 ]; then
+    echo "  FAIL  GREEN: settings.json command did not resolve on a spaced project dir: $cmd"
+    space_green_fail=1
+  fi
+done <<< "$commands"
+
+if [ "$space_red_fail" -eq 0 ] && [ "$space_red_count" -gt 0 ]; then
+  echo "  PASS  RED: all $space_red_count reconstructed unquoted commands word-split and fail (127) on a spaced project dir"; pass=$((pass+1))
+else
+  echo "  FAIL  RED: reconstructed unquoted commands did not all fail on a spaced project dir"; fail=$((fail+1))
+fi
+if [ "$space_green_fail" -eq 0 ] && [ "$space_green_count" -gt 0 ]; then
+  echo "  PASS  GREEN: all $space_green_count settings.json hook commands resolve on a spaced project dir"; pass=$((pass+1))
+else
+  echo "  FAIL  GREEN: not all settings.json hook commands resolved on a spaced project dir"; fail=$((fail+1))
+fi
+
+# HARD PROPERTY — the reviewer's real concern was never just "127 instead of
+# 0", it was that a command guard.sh SHOULD deny gets no chance to deny at
+# all. Prove the deny still fires through the shipped (quoted) form, and that
+# the identical payload silently loses the deny (127, no BLOCKED message,
+# not even a trace of exit 2) through the reconstructed unquoted form on the
+# same spaced path — fail-open, exactly as flagged in review.
+guard_quoted='"${CLAUDE_PROJECT_DIR}/hooks/guard.sh"'
+guard_unquoted='${CLAUDE_PROJECT_DIR}/hooks/guard.sh'
+fp_payload='{"tool_input":{"command":"git push --force origin main"}}'
+
+out=$(echo "$fp_payload" | ( cd "$scwd" && CLAUDE_PROJECT_DIR="$spaced" bash -c "$guard_quoted" ) 2>&1); got=$?
+if [ "$got" -eq 2 ] && printf '%s' "$out" | grep -q "BLOCKED by f4d-kit \[C-02\]"; then
+  echo "  PASS  GREEN: guard.sh still blocks force-push through a spaced project dir"; pass=$((pass+1))
+else
+  echo "  FAIL  GREEN: guard.sh should block force-push through a spaced project dir (got exit $got: $out)"; fail=$((fail+1))
+fi
+
+out=$(echo "$fp_payload" | ( cd "$scwd" && CLAUDE_PROJECT_DIR="$spaced" bash -c "$guard_unquoted" ) 2>&1); got=$?
+if [ "$got" -eq 127 ] && ! printf '%s' "$out" | grep -q "BLOCKED"; then
+  echo "  PASS  RED: unquoted form silently drops the SAME force-push deny on a spaced project dir (fail-open: exit 127, no BLOCKED message)"; pass=$((pass+1))
+else
+  echo "  FAIL  RED: expected the unquoted form to silently drop the deny (127, no BLOCKED), got exit $got: $out"; fail=$((fail+1))
+fi
+rm -rf "$spk"
 
 echo "done-check.sh"
 dc=$(mktemp -d); ( cd "$dc" && git init -q && git config user.email t@t && git config user.name t && echo "x" > a.py && git add -A && git commit -qm init && echo "y" >> a.py ); mkstate "$dc"

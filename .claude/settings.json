@@ -1,12 +1,12 @@
 {
-  "_comment": "Repo-relative hook paths, deliberately. ${CLAUDE_PLUGIN_ROOT} does NOT resolve in a project's own .claude/settings.json — a hook command referencing it is skipped entirely, not run with an empty value. Verified on CLI 2.1.220: a literal command in the identical position fires, the ${CLAUDE_PLUGIN_ROOT} form produces no output at all, and absolute or relative paths both fire. This repo's hooks live in hooks/, so a repo-relative path is the simplest form that works.",
+  "_comment": "Hook commands are anchored to ${CLAUDE_PROJECT_DIR} (the repo root), NOT repo-relative. A bare relative path (hooks/x.sh, shipped 1.22.2-1.23.2) only resolves while the spawning shell's cwd IS the repo root — Claude Code spawns each hook command with cwd = wherever the session currently is, which drifts the moment the agent runs `cd`. Proven live on CLI 2.1.220: a PreToolUse:Bash hook wired with a bare relative path fired once from root, then silently never fired again after a single `cd sub/deep` inside the same session — every following tool call ran ungated, no error, no log line. ${CLAUDE_PROJECT_DIR} is a real env var Claude Code sets on every hook process (docs: code.claude.com/docs/en/hooks.md), pinned to the repo root regardless of later cd's; anchoring with it kept the identical hook firing both before and after the same cd. ${CLAUDE_PLUGIN_ROOT} still does not resolve here — different variable, same non-resolution PR #29 already found. NOT fixed by this: a session LAUNCHED with cwd already inside a subdirectory never discovers this file at all (six independent live trials, CLI 2.1.220, both 1- and 2-level-deep launches, plain and ${CLAUDE_PROJECT_DIR}-anchored commands alike) — unlike .claude/settings.local.json, which the docs state explicitly resolves through the repo root, .claude/settings.json is not documented to walk up, and empirically does not. No hook fires for that session's entire lifetime, and no command-path anchoring can fix a file that is never read. Tracked as BACKLOG A23 — launch from the repo root until that's closed. EVERY command below is additionally wrapped in a literal pair of double quotes around the FULL expanded path (embedded via JSON's \\\" escape, so bash sees \"${CLAUDE_PROJECT_DIR}/hooks/x.sh\" as one word) — anchoring alone was not sufficient, per a reviewer on this same PR: an unquoted ${CLAUDE_PROJECT_DIR} expansion word-splits on whitespace, and CLAUDE_PROJECT_DIR is a real filesystem path that can legitimately contain a space. Proven live: bash -c on the unquoted anchored form with a spaced CLAUDE_PROJECT_DIR exits 127 (command not found, path split at the space) instead of running the hook — and per Claude Code's own exit-code contract (code.claude.com/docs/en/hooks.md), exit 127 is a NON-BLOCKING error for both PreToolUse and Stop, so the tool call proceeds exactly as if no hook were configured. This is fail-open: a force-push command that guard.sh correctly blocks (exit 2, C-02) when the path resolves produces no BLOCKED message and exit 127 instead the instant the path is unquoted and spaced — the guard never starts, so it never gets a chance to deny. Full evidence and the red/green reproduction: docs/BACKLOG.md A23; regression guard: tests/hooks_test.sh's spaced-project-dir fixture.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "hooks/session-context.sh"
+            "command": "\"${CLAUDE_PROJECT_DIR}/hooks/session-context.sh\""
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hooks/guard.sh"
+            "command": "\"${CLAUDE_PROJECT_DIR}/hooks/guard.sh\""
           }
         ]
       },
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hooks/rule-zero.sh"
+            "command": "\"${CLAUDE_PROJECT_DIR}/hooks/rule-zero.sh\""
           }
         ]
       }
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hooks/format.sh"
+            "command": "\"${CLAUDE_PROJECT_DIR}/hooks/format.sh\""
           }
         ]
       },
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hooks/verify-record.sh"
+            "command": "\"${CLAUDE_PROJECT_DIR}/hooks/verify-record.sh\""
           }
         ]
       }
@@ -56,7 +56,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hooks/done-check.sh"
+            "command": "\"${CLAUDE_PROJECT_DIR}/hooks/done-check.sh\""
           }
         ]
       }

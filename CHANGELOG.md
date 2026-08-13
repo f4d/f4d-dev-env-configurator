@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.23.8 — A23: this repo's own hooks anchored to ${CLAUDE_PROJECT_DIR}
+A reviewer caught what PR #29 missed: repo-relative hook commands
+(`hooks/x.sh`, shipped for this repo's own `.claude/settings.json`) only
+resolve while the spawning shell's cwd **is** the repo root, and Claude Code
+spawns every hook with cwd = wherever the session currently is. Confirmed live
+on CLI 2.1.220: a `PreToolUse:Bash` hook wired with a bare relative path fired
+once from root, then silently never fired again the moment the agent ran one
+ordinary `cd` — the secrets guard, rule-zero, and done-check would all go dark
+mid-session, no error, no log line. All six commands now anchor to
+**`${CLAUDE_PROJECT_DIR}`** — a real env var Claude Code sets on every hook
+process, distinct from `${CLAUDE_PLUGIN_ROOT}` (plugin-hooks-only; PR #29's
+finding on that variable is unchanged) — and the anchored form was proven to
+keep firing across the identical `cd` where the bare form went dark.
+
+**Honest bound, not silently papered over:** anchoring does not fix a session
+*launched* with cwd already inside a subdirectory — six live trials (both
+path forms, one- and two-level-deep launches) show `.claude/settings.json` is
+never discovered at all in that case, unlike `.claude/settings.local.json`,
+which is documented to resolve through the repo root. No command-path fix can
+help a file that's never read; tracked as **A23**, open. `tests/hooks_test.sh`
+gains three cases reproducing the exact resolution mechanism `.claude/settings.json`
+goes through (previous coverage invoked hooks via an absolute test-harness
+path, sidestepping this). 43 → 46 hook tests, 147 → 150 total.
+
+**Same-day review fix: the anchoring above shipped unquoted.** A reviewer on
+this PR caught it before merge: `${CLAUDE_PROJECT_DIR}` is a real path that
+can legitimately contain a space, an unquoted expansion word-splits in that
+case, and Claude Code runs every hook command via `bash -c "$command"` — so
+all six hooks would silently stop resolving (exit 127) on a project checked
+out under a spaced path. Proven **fail-open**, not just asserted: per
+`code.claude.com/docs/en/hooks.md`, exit 2 is the only exit code that blocks
+`PreToolUse`/`Stop` hooks — a 127 is a non-blocking error and the tool call
+proceeds. Demonstrated directly with `guard.sh`: a force-push command that the
+quoted form correctly blocks (exit 2, BLOCKED) produces exit 127 and no
+BLOCKED message at all through the unquoted form on a spaced path — the guard
+never starts, so its own fail-loud (G-03) logic never gets a chance to run.
+Fixed: every command now wraps the full expanded path in a literal quoted
+pair (`"command": "\"${CLAUDE_PROJECT_DIR}/hooks/guard.sh\""`), verified via
+`json.load` + `bash -c` end-to-end, not eyeballed. `tests/hooks_test.sh` gains
+a spaced-project-directory fixture (red-then-green, plus a guard.sh
+deny-survives-the-space hard-property case) and the existing generic
+anchoring assertion now requires the quoted form. 46 → 50 hook tests,
+150 → 154 total. Full evidence: `docs/BACKLOG.md` A23.
+
 ## 1.23.7 — A25: `verify.sh` now actually runs the checks it claimed to skip
 Reviewer finding on an already-merged PR: `scripts/verify.sh` — the kit's one
 advertised local verify command — printed "skipped locally (need BASE_REF —

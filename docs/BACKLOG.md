@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-13 · **Version shipped:** 1.23.7 · **Status:** all validation green (262/262 test assertions, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-13 · **Version shipped:** 1.23.8 · **Status:** all validation green (269/269 test assertions, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -24,7 +24,7 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **262** | hooks (57) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (49) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
+| Tests | **269** | hooks (64) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (49) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 45 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -429,6 +429,201 @@ needed updating. A17 (guess-list gate misses object-member lists, still open)
 touches `check_guess_lists.py` too and should rebase onto this once it lands.
 
 **Files:** `scripts/_common.py`, `scripts/check_{catch_empty,log_hygiene,pure_imports,raw_sql,guess_lists,test_count,fixtures}.py`, `tests/scanner_agreement_test.sh`, `scripts/verify.sh`
+
+---
+
+### A23 — this repo's own hook commands went dark the instant cwd left the repo root · **mid-session drift fixed in 1.23.8** · launch-from-subdirectory **still open** · effort S
+
+**Why:** a reviewer on the already-merged PR #29 pointed out that PR #29's fix
+(`${CLAUDE_PLUGIN_ROOT}` → repo-relative `hooks/x.sh`) traded one broken
+anchor for another: a repo-relative command only resolves while the spawning
+shell's cwd **is** the repo root, and `session-context.sh` itself is written
+to explicitly detect and support sessions that don't start there.
+
+**Confirmed live, CLI 2.1.220, `claude -p` (six independent fresh scratch
+repos, no shared state between runs):**
+
+1. **Mid-session cwd drift — real, and now fixed.** Session launched at repo
+   root (hooks correctly wired); agent runs `cd sub/deep` as an ordinary part
+   of its work; the **very next** Bash tool call's `PreToolUse` hook, wired
+   with the bare relative form, **never fired** — no error, no log line, ran
+   as if no guard existed. The identical hook anchored to
+   `${CLAUDE_PROJECT_DIR}` fired correctly both before and after the same
+   `cd`. This is the realistic, common-case failure — every session that
+   `cd`s into a package or subdir mid-work silently loses `guard.sh` (C-01
+   secrets, C-02 force-push, C-03 destructive SQL, C-09 destructive fs),
+   `rule-zero.sh` (C-05), and `done-check.sh` (C-04) from that point on.
+   **Fixed**: all six commands in `.claude/settings.json` now anchor to
+   `${CLAUDE_PROJECT_DIR}` — a real env var Claude Code sets on every hook
+   process (`code.claude.com/docs/en/hooks.md`), distinct from
+   `${CLAUDE_PLUGIN_ROOT}` (plugin-hook-only; PR #29's finding on that
+   variable stands unchanged) and pinned to the repo root regardless of later
+   `cd`s.
+2. **Session launched from a subdirectory — real, and NOT fixed by
+   anchoring.** Four more fresh scratch repos, launched with cwd one or two
+   levels below root: `.claude/settings.json` is **never discovered at all**
+   — not "fires with a wrong path", genuinely never read, hooks included,
+   regardless of whether the command inside it is a bare relative path OR
+   already `${CLAUDE_PROJECT_DIR}`-anchored (both forms tested, both silent).
+   An inline probe command with **zero path dependency** (`echo ... >>
+   /absolute/log`) also never fired, isolating this to settings **discovery**,
+   not command resolution. Docs support the asymmetry:
+   `.claude/settings.local.json` is explicitly documented to resolve through
+   the repo root "so one file covers sessions started in any subdirectory";
+   `.claude/settings.json` carries no such documented guarantee, and
+   empirically does not walk up. No command-path anchoring can fix a file
+   that is never read — the only mitigations are launching `claude` from the
+   repo root, or a materially different delivery mechanism (plugin-declared
+   `hooks/hooks.json`, which activates via plugin install rather than
+   cwd-relative discovery — this is what `fix/plugin-declared-hooks` builds
+   for **A18**/scaffolded consumer repos; whether to also adopt it for this
+   repo's own dogfood settings is future work, not done here).
+
+**Consequence for `session-context.sh` specifically:** its SessionStart
+firing only ever happens once, at true session start — so mid-session
+anchoring (item 1) cannot help it at all. A session launched from a
+subdirectory now correctly fires none of its guards (same as before this
+fix) **and** writes no `.session-log` line for that session — invisible, not
+mis-tagged. `session_report.py`, `/retro`, and `/promote-rule` all read that
+log; their counts undercount by exactly the sessions this affects. This is
+the same "silent gap reads as permission" shape A11 (plugin absence) and A18
+(scaffolded repos) already named, for a third trigger.
+
+**REGISTRY.md checked, no row edited:** O-01 ("repo rules load regardless of
+session cwd") stays **HOOK (session-context) · done** — correctly, per A15,
+because that guarantee is independently satisfied by Claude Code's native
+`CLAUDE.md`/`.claude/rules/*.md` auto-load (proven with no hook and no
+settings.json at all), and session-context.sh was already documented there as
+redundant defense-in-depth, "never to be cited as the reason rules load." The
+gap this entry found is in session-context's *other*, primary job
+(telemetry), which no existing row claims — nothing to correct, a real gap to
+track, hence this entry rather than a REGISTRY.md edit.
+
+**Done-when (item 1, closed):** a hook wired with a bare relative path
+demonstrably fails (exit 127) from a non-root cwd; the identical hook
+anchored to `${CLAUDE_PROJECT_DIR}` demonstrably succeeds from the same cwd;
+every command actually shipped in `.claude/settings.json` is asserted
+anchored, generically, as a regression guard. All three met —
+`tests/hooks_test.sh` § *settings.json hook command resolution*.
+
+**Open (item 2):** no fix exists at the `.claude/settings.json` level. Next
+step, if picked up: either document "launch from the repo root" as a stated
+operational constraint with a startup self-check, or extend
+`fix/plugin-declared-hooks`' mechanism to this repo's own dogfood hooks.
+
+**Follow-up finding (review on PR #39 itself, same day): anchoring alone was
+unquoted, and that is a distinct, worse bug.** A reviewer on PR #39
+(discussion_r3776532413) caught what item 1's fix shipped:
+`"command": "${CLAUDE_PROJECT_DIR}/hooks/guard.sh"` anchors the path but
+never quotes it. `${CLAUDE_PROJECT_DIR}` is a real filesystem path and can
+legitimately contain a space (e.g. a two-word macOS account name); Claude
+Code executes each hook command with `bash -c "$command"` (the same
+mechanism `tests/hooks_test.sh:124` uses to test resolution) — an unquoted
+expansion in that context word-splits on whitespace like any other unquoted
+shell variable.
+
+*Reproduced, RED, via the identical `bash -c "$cmd"` mechanism:* a scratch
+project directory `.../has space/in the path` with `hooks/` symlinked in,
+`CLAUDE_PROJECT_DIR` set to it, and the command string `.claude/settings.json`
+shipped at the time (pre-quoting) — `${CLAUDE_PROJECT_DIR}/hooks/guard.sh` —
+run exactly as Claude Code would run it: `bash: .../has: No such file or
+directory`, exit 127. The path silently split at the space; `has` (a
+fragment) was the attempted executable.
+
+*Fail-open, proven rather than assumed:* exit 127 is not exit 2. Confirmed
+against `code.claude.com/docs/en/hooks.md`: for `PreToolUse` (guard.sh,
+rule-zero.sh) and `Stop` (done-check.sh), **exit code 2 is the only exit code
+that blocks through the code alone** — "any other exit code doesn't block on
+its own … it's a non-blocking error … the action proceeds," and this
+explicitly includes the command-not-found case: "when the script path
+doesn't exist or isn't executable, the shell exits with a code like 127 …
+For most hook events, the action proceeds." Demonstrated directly, not just
+cited: the same force-push command (`git push --force origin main`) that the
+working *quoted* form correctly blocks (exit 2, stderr `BLOCKED by f4d-kit
+[C-02]: force-push is human-only.`) produces exit 127 and **no BLOCKED
+message at all** through the unquoted form on the identical spaced path —
+guard.sh's own fail-loud logic (G-03) never gets a chance to run, because
+bash fails to resolve the executable a layer below guard.sh's own code. The
+kit's fail-loud doctrine is implemented correctly *inside every hook
+script*; this bug lived one level outside all of them, in the anchoring
+string itself, where no script-level check could see it. Six for six —
+`session-context.sh`, `guard.sh`, `rule-zero.sh`, `format.sh`,
+`verify-record.sh`, `done-check.sh` — were all shipped unquoted, so all six
+were exposed. The two that matter most for gating, `guard.sh` (PreToolUse)
+and `done-check.sh` (Stop), both fail open under this bug — a real deny
+silently becomes a pass. `format.sh`/`verify-record.sh` (PostToolUse) can
+never block regardless of this bug, and `session-context.sh` (SessionStart)
+likewise never blocks — for those three the cost is lost telemetry/formatting
+rather than a defeated gate, but `guard.sh` and `done-check.sh` are exactly
+what item 1 above was written to protect.
+
+*Fixed:* every command in `.claude/settings.json` now wraps the entire
+expanded path in a literal pair of double quotes —
+`"command": "\"${CLAUDE_PROJECT_DIR}/hooks/guard.sh\""`, where the JSON `\"`
+decodes to a literal `"` character, so bash sees
+`"${CLAUDE_PROJECT_DIR}/hooks/guard.sh"` as a single quoted word regardless
+of what the expansion contains. Verified end-to-end, not eyeballed: `python3
+json.load` on the file decodes each `command` value to the literally-quoted
+string, and that decoded string run through `bash -c` against the same
+spaced fixture resolves and executes (exit 0 for the non-denying hooks, the
+correct verdict exit code for guard.sh/rule-zero.sh against payloads that
+should deny).
+
+*Tests (red-then-green, additive):* `tests/hooks_test.sh` § *settings.json
+hook commands survive a project directory containing a space* — builds a
+project directory with a literal space in it, symlinks `hooks/` into it,
+and: (RED) reconstructs the pre-fix form by stripping the quotes the fix
+adds and shows it still word-splits (127) on the spaced path; (GREEN) shows
+every command actually shipped resolves (no 127) on the identical spaced
+path; (GREEN) shows guard.sh still returns exit 2 with the BLOCKED message
+for a force-push payload through the spaced path; (RED) shows the
+reconstructed unquoted form silently drops that same deny (127, no BLOCKED
+message) on the identical payload and path. The existing generic anchoring
+assertion (§ *settings.json hook command resolution*) is tightened to
+require the quoted form, not just the anchored one. Confirmed these cases
+actually catch a regression, not just describe one: reverted
+`.claude/settings.json` to the pre-quoting form, re-ran, watched the five
+now-quoting-aware assertions fail exactly as predicted, restored, watched
+them pass again. 46 → 50 hook tests; `scripts/verify.sh` green.
+
+**Done-when (item 1, revised):** anchoring alone was insufficient. Full
+statement now: every command in `.claude/settings.json` is wrapped in a
+literal quoted path, proven to resolve through a project directory
+containing a space, and proven not to silently drop a real deny under the
+same condition. Met, per the tests above.
+
+**Merge-surfaced follow-up (2026-08-13):** merging this PR forward past
+A18/A20/A21/A22 (all merged after this branch was cut) surfaced two more
+interaction bugs, found by actually re-running `verify.sh` on the merged
+result rather than trusting a clean merge — same discipline as A20's
+own merge-surfaced bug above it in this file.
+
+1. `tests/conformance_test.sh`'s hooks.json/`settings.json` drift check
+   extracts each hook's filename via `command.rsplit('/', 1)[-1]` — correct
+   for the old unquoted form, but the quoting fix above makes the decoded
+   string end in a literal `"`, so the extracted name became `guard.sh"` and
+   never matched hooks.json's clean `guard.sh`. Fixed: strip surrounding
+   quote characters (`chr(34)`, not a literal `"`, since this Python is
+   itself embedded in a double-quoted bash string) before taking the
+   basename.
+2. `tests/hooks_test.sh`'s own spaced-path fixture (`$scwd`, the directory
+   the test `cd`s into before invoking each hook) was never `git init`'d and
+   never given `.claude/.framework-state.json` — harmless when this test was
+   written, since `hook_opted_in()` (A18) didn't exist yet on the branch this
+   was built against. Once merged forward past A18, `hook_opted_in()`'s
+   `git rev-parse --show-toplevel` on a non-repo `$scwd` fails, opt-in reads
+   false, and guard.sh now exits 0 before even reading stdin — the GREEN
+   force-push-still-blocks assertion silently passed for the wrong reason
+   (never evaluated) until it started failing outright. Fixed: `$scwd` now
+   gets `git init -q` and `mkstate` (the same helper every other opted-in
+   fixture in this file already uses) before the loop that exercises it.
+
+Both reproduced as real failures on the merged tree first (`hooks
+pass=63 fail=1`, `conformance pass=48 fail=1`), not assumed; both green
+after their respective one-line fixes. `scripts/verify.sh`: 267 → 269
+assertions, VERIFY PASSED.
+
+**Files:** `.claude/settings.json`, `tests/hooks_test.sh`, `tests/conformance_test.sh`
 
 ---
 
@@ -989,6 +1184,10 @@ opt-in — not with the project. Still needs O5 before it can move.
 ```
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
+
+NEXT     A23  session-context.sh still writes no telemetry for a session
+              launched from a subdirectory (mid-session drift fixed 1.23.8;
+              this residual needs the A18 mechanism or a documented constraint)
 
 SOON     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
               since it is an end-to-end /project-init exercise. Run it after them.

@@ -170,7 +170,13 @@ names = set()
 for entries in (d.get('hooks') or {}).values():
     for entry in entries:
         for h in entry.get('hooks') or []:
-            names.add(h['command'].rsplit('/', 1)[-1])
+            # A23 follow-up: settings.json's own commands are now wrapped in a
+            # literal quote pair (fix for word-splitting on a spaced project
+            # path) -- strip it before taking the basename, or a trailing
+            # quote character rides along and never matches hooks.json's
+            # unquoted names. chr(34), not a literal \", since this whole
+            # block is itself embedded in a double-quoted bash string.
+            names.add(h['command'].strip(chr(34)).rsplit('/', 1)[-1])
 print(','.join(sorted(names)))
 ")
     if [ "$hj_seen" = "$sj_seen" ]; then
