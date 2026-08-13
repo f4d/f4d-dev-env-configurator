@@ -1,6 +1,10 @@
 # BACKLOG — f4d-kit
 
+<<<<<<< HEAD
+**Last updated:** 2026-08-12 · **Version shipped:** 1.23.0 · **Status:** all validation green (170/170 test assertions, self-scans clean, all workflows parse)
+=======
 **Last updated:** 2026-08-13 · **Version shipped:** 1.23.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+>>>>>>> origin/master
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -24,7 +28,11 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
+<<<<<<< HEAD
+| Tests | **170** | hooks (56) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (42) + companions (18) — measured via `bash scripts/verify.sh`, 2026-08-12 |
+=======
 | Tests | **153** | hooks (43) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (38) + companions (18) |
+>>>>>>> origin/master
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 44 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -227,58 +235,86 @@ kit's own source post-change.
 
 ---
 
-### A18 — scaffolded repos have a DEAD enforcement layer · **CRITICAL** · effort M
+### A18 — scaffolded repos have a DEAD enforcement layer · ✅ built in 1.23.0
 
-**Why:** `${CLAUDE_PLUGIN_ROOT}` does **not** resolve inside a project's own
-`.claude/settings.json`. A hook command referencing it is **skipped entirely** —
-not run with an empty value. `/project-init` writes exactly that form
-(`skills/project-init/SKILL.md:191`), so **every repo this kit has ever
-scaffolded has non-functional hooks**: no secrets guard, no rule-zero, no
-done-check, no session telemetry. The GHL-MCP audits recommended adopting that
-layer; it would not have worked.
+Shipped the recommended option. `hooks/hooks.json` (new) declares `guard.sh`,
+`rule-zero.sh`, `done-check.sh`, `format.sh`, `verify-record.sh`, and
+`session-context.sh` **globally, at the plugin level** — the only place
+`${CLAUDE_PLUGIN_ROOT}` resolves. Each hook's first move is now
+`hook_opted_in()` (`hooks/_parse.sh`): one `git rev-parse`, one `[ -f ]` against
+`.claude/.framework-state.json`, `exit 0` before stdin is even read if absent.
+Presence, not content, is the whole signal — a corrupted-but-present state file
+still counts as opted in (tested), so corrupting the marker can never become a
+way to silently disable enforcement the way removing the plugin already could.
+`/project-init` now writes **only** `guard-local.sh` into a target's
+`settings.json`; the broken `${CLAUDE_PLUGIN_ROOT}` form step 6 used to
+describe is gone from `SKILL.md`, and `scaffold-spec.md` now carries the exact
+replacement content. **No migration needed** for repos scaffolded before this
+fix — every one already has `.claude/.framework-state.json` (written at step 7
+or 11), so their hooks start firing the moment their plugin install updates
+past this version, with zero changes required in the target repo.
 
-Measured 2026-08-12 on CLI 2.1.220, in a project's `.claude/settings.json`:
+Proof, three ways. `tests/hooks_test.sh`: 56 cases (was 40), with a genuine
+red-then-green pair — the gate physically removed (`git stash` on the hook
+scripts only, keeping the new tests), the whole new "A18" section drops to
+46/10 failing (exactly the 10 cases whose entire point is the gate), restored,
+56/0. `tests/conformance_test.sh`: 42 cases (was 29) — the manifest parses,
+every command resolves to a real executable script, it matches
+`.claude/settings.json`'s hook set, and every declared hook actually calls the
+gate, that last one also shown red (one call site removed) then green. And a
+live run against a real installed plugin — throwaway marketplace pointing at
+the change, real `claude -p` sessions, CLI 2.1.220 (the version the original
+bug was measured on) — producing the acceptance-bar artifact itself: an opted-in
+scratch repo's `.claude/.enforcement-log` reading `C-01 [withheld —
+secret-class deny]` after a real blocked `.env` write, and the identical prompt
+against a never-opted-in repo creating the file with no `.claude/` directory
+ever appearing. Full transcript: `docs/acceptance/2026-08-12-a18-plugin-declared-hooks.md`.
 
-| Path form | Fires? | `$CLAUDE_PLUGIN_ROOT` |
-|---|---|---|
-| `${CLAUDE_PLUGIN_ROOT}/hooks/x.sh` | **no** | — |
-| absolute path | yes | — |
-| repo-relative (`hooks/x.sh`, `.claude/hooks/x.sh`) | yes | — |
-| plugin-declared `hooks/hooks.json` | yes | **resolves** |
+**Honest bounds.** f4d-kit's own repo now carries `.claude/.framework-state.json`
+too, so it does not go dark under the new gate — its hooks stay wired directly
+in its own `settings.json` as well (repo-relative, the one case that always
+worked), deliberately double-wired alongside the new global declaration (A6:
+safe), at the cost of a real deny in *this* repo's own sessions logging twice
+instead of once; not fixed, since removing either wiring path trades a real
+safety margin for a cosmetic telemetry count. `/project-audit`'s and
+`ENFORCEMENT.md`'s prose about plugin-version pinning was written for the old,
+never-working absolute-path design and is now slightly imprecise about what a
+"version mismatch" means under a globally-declared hook — not corrected here
+(out of the stated file scope), flagged for a follow-up. While building the
+live proof, `rule-zero.sh` was separately observed to derive its search root
+from session cwd rather than the target file's own path, which can
+false-positive when a tool call writes outside the current repo entirely —
+unrelated to A18, not fixed here.
 
-Isolated with a control: a literal command in the identical position fired,
-while a variant that wrote to a marker file *before* touching the variable
-produced no output at all — so the hook never executed.
+**Files:** `hooks/hooks.json` (new), `hooks/_parse.sh` (new `hook_opted_in`),
+`hooks/{guard,rule-zero,done-check,format,verify-record,session-context}.sh`,
+`skills/project-init/SKILL.md`, `skills/project-init/references/scaffold-spec.md`,
+`scripts/upgrade.py`, `tests/hooks_test.sh`, `tests/conformance_test.sh`,
+`templates/process/ENFORCEMENT.md`, `README.md`, `START_HERE.md`,
+`.claude/.framework-state.json` (new, this repo's own opt-in).
 
-The irony worth preserving: `guard-local.sh` (A11's "fallback floor") uses a
-relative path and is therefore **the only guard that has ever worked in a
-scaffolded repo**. The fallback works; the primary never did.
-
-**Build:** decide the delivery mechanism, then change what `/project-init`
-emits. Options, with what each costs — measured, not guessed:
-
-- **Absolute paths — ruled out.** The install path embeds the version
-  (`~/.claude/plugins/cache/f4d/f4d-kit/1.22.2`), so the next release points
-  every project at a directory that no longer exists. Silent death everywhere
-  at once — the exact A11 shape.
-- **Copy hooks into `.claude/hooks/`, reference relatively.** Works today
-  (guard-local.sh proves it). Cost: copies drift, so `upgrade.py` must manage a
-  new file class with the same FRAMEWORK/LOCAL/CONFLICT adjudication as rules.
-- **Plugin-declared `hooks/hooks.json` + a per-repo opt-in check inside each
-  hook** (recommended). The only form where the variable resolves; hook code
-  lives in the plugin so it updates with the plugin, and nothing is copied into
-  the target. Scope is global, so each hook must exit 0 on its first lines
-  unless the repo opts in — key it on `.claude/.framework-state.json`, which
-  `/project-init` and `upgrade.py` already write. Costs: a short-lived
-  subprocess per matched tool call in *every* repo (guard.sh matches
-  `Bash|Read|Edit|Write`), and a global blast radius that raises the bar on the
-  fail-loud tests.
-
-Whatever lands, prove it with a fired guard in a scaffolded repo — an
-`.enforcement-log` entry, not a passing unit test.
-
-**Files:** `skills/project-init/SKILL.md:191`, `hooks/hooks.json` (new),
-`scripts/upgrade.py`, `templates/scaffold/guard-local.sh`, `hooks/*.sh`
+**Follow-up (2026-08-13, PR #32 review).** The "unwritable log must never
+weaken the deny" fixture in `tests/hooks_test.sh` used `chmod 555` on `.claude`
+to simulate a telemetry write failure — root bypasses Unix permission bits
+entirely, so under a root CI runner (this repo's own included) the write went
+through anyway and the fixture reported green without ever exercising the
+property it claims to test. Reproduced without needing literal root: the
+identical write that 555 blocks for a normal user goes through fine once
+permission bits stop being the obstacle (`chmod 777` — the permission level
+root effectively sees, since root ignores permission bits altogether). A
+same-content regression harness run in scratch (log_deny no longer swallowing
+its own write failure, `deny()` gated on it via `&&`) confirmed the exact
+failure mode: the old fixture missed the regression at `chmod 777` (false
+green) while catching it correctly at real, non-root 555. Fixed by
+pre-creating `.enforcement-log` **as a directory** instead of chmod'ing the
+parent: opening a directory for writing fails with `EISDIR`, a type check
+`open()` makes on the call itself, independent of uid or permission bits —
+confirmed to still block the write at `chmod 777`, and the same regression
+harness confirmed the new fixture catches the regression there too. The
+fixture now also asserts the write itself failed (path still an empty
+directory) rather than inferring it from `guard.sh`'s exit code alone, since a
+successful write produces the identical exit 2. Targeted fix, `tests/hooks_test.sh`
+only; no application code changed.
 
 ---
 
@@ -549,9 +585,10 @@ all ("no terminal required" suggests a different execution model). If it cannot,
 the audit surface there is agent-driven inspection only, and its findings are
 weaker than a gate run — which must be stated in the report, not glossed.
 
-**Depends on:** A18. The hook-delivery mechanism has to be settled before the
-adapter boundary can be drawn, because A18's answer determines whether hooks
-travel with the plugin or with the project.
+**Depended on A18, now unblocked** (✅ built in 1.23.0, see §2). The
+hook-delivery question is settled: hooks travel with the plugin, globally
+(`hooks/hooks.json`), gated by a per-repo `.claude/.framework-state.json`
+opt-in — not with the project. Still needs O5 before it can move.
 
 ---
 
@@ -568,9 +605,7 @@ travel with the plugin or with the project.
 ## 6 — Priority order
 
 ```
-NOW      A18  scaffolded repos have a DEAD enforcement layer   <- CRITICAL, blocks O7
-
-         B-01 Notion approval    (blocked on Ian)
+NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
 
 NEXT     A20  agent wiring (verify-runner absent, no selection rule, never audited)
@@ -579,18 +614,24 @@ SOON     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
               since it is an end-to-end /project-init exercise. Run it after them.
          S-04 promotion: eslint switch-exhaustiveness-check / mypy
 
-LATER    O7   multi-platform delivery (core + adapters) — needs O5, blocked on A18
+LATER    O7   multi-platform delivery (core + adapters) — needs O5 (A18 no longer blocks it)
          N-01 Workers migration — at 3rd repo or beta exit
 ```
 
-**Why A18 is first.** Every scaffolded repo currently has non-functional hooks.
-Until the delivery mechanism is settled, `/project-init` keeps producing repos
-whose enforcement layer looks present and does nothing — and O7's adapter
-boundary cannot be drawn without that answer.
+**A18 shipped in 1.23.0** (see §2) — scaffolded repos now get a live
+enforcement layer via plugin-declared `hooks/hooks.json`. **Why A19 is next.**
+Its own shape is the same class of gap A18 just closed: step 10 names
+workflows that either do not exist (`verify.yml`) or exist but were never
+copied (`gates.yml`, `preflight.yml`) — so a freshly scaffolded repo's *hooks*
+now work, but its registry gates and secrets preflight still never install.
+O4 stays after both for the same reason it did before: it is an end-to-end
+`/project-init` run, so it verifies A18 and A19 rather than duplicating them.
 
-**Why O4 moved.** It is an end-to-end `/project-init` run, so it verifies A18
-and A19 rather than duplicating them. Running it first would only certify the
-broken scaffolder.
+**O7, unblocked.** A18 was O7's stated dependency — "the hook-delivery
+mechanism has to be settled before the adapter boundary can be drawn." It is
+now: hooks travel with the plugin, globally, gated by a per-repo opt-in. O7
+still needs O5 (extracting the doctrine as a portable artifact) before it can
+move, and stays LATER.
 
 ---
 

@@ -6,13 +6,29 @@ The organizing principle of this framework, and the one it most easily violates.
 
 | Layer | Enforced by | Ignorable? |
 |---|---|---|
-| **Hooks** (`.claude/settings.json`) | The harness, before/after tool calls | **No** — it executes |
+| **Hooks** (plugin-declared `hooks/hooks.json`, plus `.claude/settings.json` for the local fallback) | The harness, before/after tool calls | **No** — it executes |
 | **Tests** (verify, CI) | The test runner | **No** — it fails the build |
 | **Skills** | Fire on task shape | Only by not invoking them |
 | **Instruction files** (CLAUDE.md, rules) | Being read | **Yes — demonstrably** |
 
 Anything load-bearing should be a hook or a test. Instruction files carry
 reference and judgment, not enforcement.
+
+**Why most hooks are not in this repo's own `.claude/settings.json` (A18).**
+`${CLAUDE_PLUGIN_ROOT}` — needed to point a hook command at code that lives in
+the plugin — only resolves inside the plugin's *own* `hooks/hooks.json`. Built
+into a project's own `settings.json` instead, it silently fails: the hook is
+skipped, not run with an empty value (measured on Claude Code 2.1.220). So this
+project's guard, rule-zero, done-check, format, verify-record, and
+session-context hooks are declared once, globally, by the plugin — which means
+they match on *every* repo you have Claude Code open in, not only this one.
+Each checks `.claude/.framework-state.json` before doing anything else and
+no-ops instantly if it is absent, which is how a repo that never adopted this
+framework pays nothing for a plugin it may not even have installed. The one
+hook still wired directly in this repo's `settings.json` is
+`.claude/hooks/guard-local.sh` — copied in at scaffold time specifically so a
+relative path works, and specifically so C-01/C-02 still block if the plugin
+itself is ever uninstalled.
 
 ## The load path
 

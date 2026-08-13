@@ -2,6 +2,7 @@
 # f4d-kit PreToolUse guard. Exit 2 = hard block, stderr returned to Claude.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/_parse.sh"
+hook_opted_in || exit 0
 
 input=$(cat)
 cmd=$(hook_field "$input" "command")

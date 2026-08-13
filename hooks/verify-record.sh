@@ -3,6 +3,7 @@
 # Feeds both done-check.sh and the /project-audit evidence report.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/_parse.sh"
+hook_opted_in || exit 0
 input=$(cat)
 cmd=$(hook_field "$input" "command")
 [ -z "$cmd" ] && exit 0
