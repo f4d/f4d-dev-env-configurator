@@ -228,6 +228,29 @@ unrelated to A18, not fixed here.
 `templates/process/ENFORCEMENT.md`, `README.md`, `START_HERE.md`,
 `.claude/.framework-state.json` (new, this repo's own opt-in).
 
+**Follow-up (2026-08-13, PR #32 review).** The "unwritable log must never
+weaken the deny" fixture in `tests/hooks_test.sh` used `chmod 555` on `.claude`
+to simulate a telemetry write failure — root bypasses Unix permission bits
+entirely, so under a root CI runner (this repo's own included) the write went
+through anyway and the fixture reported green without ever exercising the
+property it claims to test. Reproduced without needing literal root: the
+identical write that 555 blocks for a normal user goes through fine once
+permission bits stop being the obstacle (`chmod 777` — the permission level
+root effectively sees, since root ignores permission bits altogether). A
+same-content regression harness run in scratch (log_deny no longer swallowing
+its own write failure, `deny()` gated on it via `&&`) confirmed the exact
+failure mode: the old fixture missed the regression at `chmod 777` (false
+green) while catching it correctly at real, non-root 555. Fixed by
+pre-creating `.enforcement-log` **as a directory** instead of chmod'ing the
+parent: opening a directory for writing fails with `EISDIR`, a type check
+`open()` makes on the call itself, independent of uid or permission bits —
+confirmed to still block the write at `chmod 777`, and the same regression
+harness confirmed the new fixture catches the regression there too. The
+fixture now also asserts the write itself failed (path still an empty
+directory) rather than inferring it from `guard.sh`'s exit code alone, since a
+successful write produces the identical exit 2. Targeted fix, `tests/hooks_test.sh`
+only; no application code changed.
+
 ---
 
 ### A19 — `/project-init` never ships the gates or the secrets preflight · **high** · effort S

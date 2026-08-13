@@ -158,17 +158,38 @@ if printf '%s' "$line" | awk -F'\t' 'NF==3 && $2=="C-02" {exit 0} {exit 1}'; the
   echo "  PASS  deny logs TSV with rule id (C-02)"; pass=$((pass+1))
 else echo "  FAIL  deny logs TSV with rule id (got: $line)"; fail=$((fail+1)); fi
 
-# 2. HARD PROPERTY: an unwritable log must never weaken the deny. .claude must
-#    stay a real directory containing the opt-in marker (or the fixture would
-#    just be testing "not opted in" instead) — chmod it read-only instead of
-#    the old "touch .claude as a plain file" trick, so `mkdir -p` still finds
-#    an existing directory (succeeds) but writing a NEW file inside it (the
-#    log) fails. Read access to the marker survives; write access does not.
-et2=$(mktemp -d); ( cd "$et2" && git init -q ); mkstate "$et2"; chmod 555 "$et2/.claude"
+# 2. HARD PROPERTY: an unwritable log must never weaken the deny. chmod 555 is
+#    NOT this test: root bypasses Unix permission bits entirely, and this
+#    suite's own CI (like many people's local Docker setups) commonly runs as
+#    root, so a fixture that relies on permission bits alone silently stops
+#    testing anything the moment it runs there — reproduced directly: the same
+#    write that 555 blocks for a normal user goes through fine once permission
+#    bits stop being the obstacle (root's whole nature), and a regression
+#    where a telemetry failure suppresses the deny would sail through
+#    undetected in exactly that environment while this fixture kept reporting
+#    green. Pre-create .enforcement-log AS A DIRECTORY instead: opening a
+#    directory for writing fails with EISDIR — a type check the kernel makes
+#    on the open() call itself, independent of any uid/permission-bit check,
+#    per open(2): "[EISDIR] The named file is a directory, and the arguments
+#    specify that it is to be opened for writing." Verified empirically too:
+#    the write still fails this way even with the directory chmod 777 — the
+#    permission bits root effectively sees, since root ignores them — so this
+#    blocks root exactly as it blocks everyone else. .claude itself stays a
+#    normal writable directory holding the opt-in marker, so this fixture
+#    still exercises "write fails", not "not opted in".
+et2=$(mktemp -d); ( cd "$et2" && git init -q ); mkstate "$et2"; mkdir -p "$et2/.claude/.enforcement-log"
 echo '{"tool_input":{"file_path":"/x/.env"}}' | (cd "$et2" && bash "$HOOKS/guard.sh" >/dev/null 2>&1); got=$?
 if [ "$got" -eq 2 ]; then echo "  PASS  deny still exits 2 when telemetry cannot write"; pass=$((pass+1))
 else echo "  FAIL  telemetry failure weakened the deny (got $got)"; fail=$((fail+1)); fi
-chmod -R u+w "$et2" 2>/dev/null || true   # restore write so cleanup's rm -rf can remove it
+# The exit code alone doesn't prove the write actually failed — a SUCCESSFUL
+# write produces the same exit 2 (see check 1 above), which is exactly how the
+# old fixture went blind under root without ever going red. Assert the write's
+# outcome directly: log_deny only ever appends text to this path and nothing
+# else touches it, so if the write had gone through it could not still be an
+# empty directory.
+if [ -d "$et2/.claude/.enforcement-log" ] && [ -z "$(ls -A "$et2/.claude/.enforcement-log" 2>/dev/null)" ]; then
+  echo "  PASS  telemetry write actually failed (path is still an empty directory)"; pass=$((pass+1))
+else echo "  FAIL  telemetry write succeeded despite the fixture (EISDIR mechanism regressed)"; fail=$((fail+1)); fi
 
 # 3. An allowed command writes nothing.
 et3=$(mktemp -d); ( cd "$et3" && git init -q ); mkstate "$et3"
