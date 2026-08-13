@@ -1,6 +1,6 @@
 {
   "name": "f4d-kit",
-  "version": "1.22.2",
+  "version": "1.23.1",
   "description": "Reusable baseline development and code product management framework: lifecycle process, interview-driven scaffolding, composable rules modules, safety hooks, and audit agents for API-based, DB-backed web apps with multi-source data integrations.",
   "author": {
     "name": "Ian Lowell"

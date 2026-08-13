@@ -27,7 +27,7 @@ section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 section "harnesses"
 total=0
-for t in hooks render_registry gate_trio statelessness conformance companions; do
+for t in hooks render_registry gate_trio statelessness conformance companions notion_sync; do
   line=$(bash "tests/${t}_test.sh" 2>&1 | tail -1)
   n=$(printf '%s' "$line" | grep -o 'pass=[0-9]*' | cut -d= -f2)
   f=$(printf '%s' "$line" | grep -o 'fail=[0-9]*' | cut -d= -f2)

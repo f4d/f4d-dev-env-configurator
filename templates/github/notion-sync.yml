@@ -14,8 +14,14 @@ permissions:
   pull-requests: read
 
 concurrency:
-  # Serialize per issue so two events can't race on the same Notion row.
-  group: notion-sync-${{ github.event.issue.number || github.event.pull_request.number }}
+  # Serialize every run for the repo behind one key. A PR event and the
+  # issues.closed event it triggers by closing a linked issue carry
+  # different numbers (github.event.pull_request.number vs
+  # github.event.issue.number), so a per-number key lets them race on the
+  # same Notion row instead of queueing behind each other. This sync is
+  # low-volume (issue/PR events only), so losing per-issue parallelism
+  # costs nothing real.
+  group: notion-sync-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:

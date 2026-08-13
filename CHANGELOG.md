@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.23.1 — notion-sync templates: five review findings on the first real-world use
+
+`templates/github/claude-code-review.yml`, `templates/github/notion-sync.yml`,
+and `scripts/notion_sync.py` got their first outside review after being
+copied byte-identical into three live RoofAdvisor repos — and their first
+test file, `tests/notion_sync_test.sh` (14 checks). **The serious one:**
+every `pull_request` event built a synthetic issue from the PR itself
+(title, timestamp, labels) and sent it unconditionally, even when a real,
+correct Notion row already existed for the linked issue — a PR whose title
+or labels differ from its issue (the normal case) silently overwrote the
+issue's own fields on every open, merge, or close. Fixed by splitting the
+write path: an existing row gets only the fields a PR event actually owns
+(`build_pr_mirror_props`); a not-yet-synced issue gets seeded from the real
+GitHub issue (`fetch_issue`, using the `GITHUB_TOKEN` the workflow already
+passed in but the script never read) instead of a fabrication. Also: a PR
+closed without merging no longer gets stuck "In Review" forever (three
+states, not two — merged / closed-unmerged / still open); `claude-code-review.yml`
+now triggers on `ready_for_review`, not just `opened`/`synchronize`, so a
+draft PR that goes ready with no further commit actually gets reviewed;
+`notion-sync.yml`'s concurrency key is repo-wide instead of per-issue-number,
+so a PR and the issue it closes can no longer race on the same row; and
+`urlopen()` in `notion_sync.py` carries an explicit timeout so a stalled
+Notion (or GitHub) connection fails the job promptly instead of occupying it
+for hours. All five red-then-green: the harness was written and run against
+the unmodified files first, so every failure below is a captured pre-fix
+transcript, not a reconstruction — see `docs/BACKLOG.md` A22 for the exact
+values. `scripts/verify.sh`: 147 → 162 assertions, all ten gates clean.
+
+
 ## 1.22.2 — round-7 review fixes; S-04 honestly re-opened
 Seven findings, all real. The one that matters most is a reversal: **S-04 goes back to tracked debt** — shipping an `assertNever` helper nobody is required to import enforces nothing, and marking it done was scoreboard inflation; its promote-when is now eslint `switch-exhaustiveness-check` / mypy strict-enum integration in the scaffold verify (44 enforced, 8 debts — the honest numbers). Recall fixes, re-measured on GHL-MCP: block-bodied promise catches (`.catch(() => { return []; })`) now caught (62→64) and log-hygiene scans complete multiline calls (1→5 — a formatter putting `req.body` on the next line no longer hides it). Correctness fixes: C-08 counts `async def test_` and compares from the **merge base** (tests added to main after branching are not the PR's deletions); G-05 enumerates baseline fixture paths so an outright-deleted fixture file is the strongest case removal, not an invisible one; the conformance MANDATED list includes the three newest gate scripts.
 
