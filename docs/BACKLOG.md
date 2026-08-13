@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-13 · **Version shipped:** 1.23.3 · **Status:** all validation green (200/200 test assertions, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-13 · **Version shipped:** 1.23.4 · **Status:** all validation green (234/234 test assertions, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -17,17 +17,17 @@
 | Surface | Count | Notes |
 |---|---|---|
 | Skills | 15 | repo-builder, org-profile, project-init, project-audit, framework-upgrade, promote-rule, notion-sync, new-module, new-integration, contract-first, work-intake, write-spec, decision-record, ship-it, retro |
-| Rules modules | 22 | incl. REGISTRY.md with **76** rules (G-06 added) |
+| Rules modules | 22 | incl. REGISTRY.md with **77** rules (G-07 added) |
 | Hooks | 7 | guard, rule-zero, session-context, done-check, verify-record, format, _parse — **now actually armed in this repo**, see below |
-| Gate scripts | 12 | fixtures, contract-pin, guess-lists, rollback, statelessness, commits, raw-sql, pure-imports, catch-empty, log-hygiene, test-count, **companions** |
-| Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner |
+| Gate scripts | 13 | fixtures, contract-pin, guess-lists, rollback, statelessness, commits, raw-sql, pure-imports, catch-empty, log-hygiene, test-count, companions, **agents** |
+| Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner — selection is now derived from `decided_modules`, not all-four-always (A20) |
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **200** | hooks (57) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (48) + companions (18) + scanner_agreement (8) — measured via `bash scripts/verify.sh`, 2026-08-13 |
+| Tests | **234** | hooks (57) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (48) + companions (18) + scanner_agreement (8) + agent_presence (34) — measured via `bash scripts/verify.sh`, 2026-08-13 |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
-**Rule status:** 44 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
+**Rule status:** 45 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
 
 ### What changed on 2026-08-12 — read this before trusting anything above
 
@@ -403,25 +403,6 @@ tightens which existing 6 assertions are logically checked, not how many run.
 
 ---
 
-### A20 — the agents are scaffolded but not selectable, and never audited · **medium** · effort S
-
-**Why:** three gaps found 2026-08-12:
-
-1. The interview's plan preview lists `AGENTS: contract-drift-checker,
-   schema-reviewer, integration-auditor` (`SKILL.md:133`) — **`verify-runner` is
-   missing**, though `LIFECYCLE.md:77` ("Anything"), `CADENCE.md:10` ("Per PR")
-   and `ship-it/SKILL.md:21` ("Always") all call it unconditional. The always-on
-   agent is the one absent from the plan the user approves.
-2. Nothing defines *which* agents are "selected". Step 7 says "only the selected
-   agents", but unlike modules — which have explicit `Q8 = yes → livesystem`
-   mappings — agents have no selection rule at all.
-3. `/project-audit` never checks agent presence. A repo can lose its agents and
-   no audit notices. The A11 shape again.
-
-**Files:** `skills/project-init/SKILL.md:133,190`, `skills/project-audit/SKILL.md`
-
----
-
 ### A21 — six scanners duplicate the SKIP tuple `_common.py` exists to hold · ✅ built in 1.22.4
 
 Consolidated all seven scanners onto `_common.SKIP_DIRS` (now a `frozenset` so
@@ -496,6 +477,59 @@ matches the recorded framework state. 4 harness cases red-green.
 `REGISTRY.md` § *Reading this file* now states permanence (supersede with a new
 ID, never renumber); `render_registry.py --validate` and `upgrade.py` fail on
 any reference to an ID that does not exist.
+
+---
+
+### A20 — the agents are scaffolded but not selectable, and never audited · ✅ built in 1.23.0
+
+All three gaps closed together. **(1)** The plan preview's `AGENTS:` line
+(`SKILL.md:142`) now reads `verify-runner (always-on)  |  schema-reviewer,
+integration-auditor (selected: ...)` — the always-on agent is no longer absent
+from what the user approves, and the line now says out loud which agent is
+unconditional versus which were derived from an answer. **(2)** Selection is a
+rule now, not a vibe: `verify-runner` unconditional; `schema-reviewer` /
+`integration-auditor` / `contract-drift-checker` selected exactly when
+`database` / `data-integration` / `contracts` is in `decided_modules` — the
+pairing `ENFORCEMENT.md`'s honest-audit table already stated, now actually
+wired at Step 3.7 and spelled out in `module-catalog.md`'s new *Agent
+Catalog* section (no new interview question — reused the modules' own
+Q4/Q5/Q7 triggers). **(3)** `scripts/check_agents.py` (new, registered as
+**G-07**) derives the expected agent set from which `.claude/rules/*.md` a
+repo actually holds and flags any agent file that is missing or
+present-but-empty; `/project-audit`'s Enforcement layer runs it right next to
+the A11 guard-local check it mirrors in shape. `tests/agent_presence_test.sh`
+proves it — 25 cases, red-then-green for all three conditional agents, the
+unconditional floor, the empty-file edge case, an unheld-module negative case
+(a module NOT held must not require its agent), and two G-03 fail-loud paths
+(`.claude/rules` or `.claude/agents` present as a plain file, not a
+directory). Wired into `scripts/verify.sh`'s harness loop and gate-script
+loop; `bash tests/agent_presence_test.sh` and `python3
+scripts/check_agents.py` both run clean against this repo (SKIP — the kit
+itself holds no `.claude/rules/`, correctly: it is the plugin source, not a
+scaffolded consumer).
+
+**Follow-up (2026-08-13), found by actually running the merged result, not by
+inspection:** the claim directly above — that this repo correctly SKIPs — was
+true when written and became false the moment A18 merged. A18 gave this
+repo's own `.claude/settings.json` a `.claude/.framework-state.json` file too
+(self-opting it into its own plugin-declared hooks, an unrelated reason), and
+`check_agents.py`'s adoption check used that file's presence as its *only*
+signal. Running `bash scripts/verify.sh` against the merged state (not
+assumed clean) surfaced `check_agents FINDINGS`: `verify-runner.md` reported
+"missing" against a repo with no `.claude/agents/` directory to hold it — the
+kit auditing itself as if it were a consumer. Fixed by requiring **both**
+`.claude/.framework-state.json` and `.claude/rules/` present together before
+evaluating (neither alone is sufficient — see the script's own docstring for
+why each one false-positives on its own). `tests/agent_presence_test.sh`
+gained 4 cases for this shape specifically (30 → 34): the framework-state-only
+SKIP, its message, and a G-03 regression guard proving a corrupted
+`.claude/rules` (present as a plain file) still fail-louds rather than being
+swallowed into the new SKIP path. Full suite 234/234, `check_agents` clean
+against this repo.
+
+**Files:** `skills/project-init/SKILL.md`, `skills/project-init/references/module-catalog.md`,
+`scripts/check_agents.py`, `tests/agent_presence_test.sh`, `scripts/verify.sh`,
+`skills/project-audit/SKILL.md`, `templates/rules/REGISTRY.md` (G-07).
 
 ---
 
@@ -599,8 +633,6 @@ opt-in — not with the project. Still needs O5 before it can move.
 ```
 NOW      B-01 Notion approval    (blocked on Ian)
          B-02 Brand Torus path   (blocked on Ian)
-
-NEXT     A20  agent wiring (verify-runner absent, no selection rule, never audited)
 
 SOON     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
               since it is an end-to-end /project-init exercise. Run it after them.

@@ -34,3 +34,31 @@ Each module is a single file copied into `.claude/rules/`. Include only what the
 - **`determinism` without `storage` is almost never right.** `storage` without `determinism` is common and fine.
 - **`statelessness` is decided by deployment, not by preference.** If the project will ever run two instances, it is required — and the local stack changes with it. Retrofitting statelessness after the first production incident is far more expensive than starting with a two-instance compose file.
 - If a project needs more than ten modules, it is probably two projects.
+
+## Agent Catalog
+
+Agents are not modules and are never asked about directly — selection rides on
+an answer already given. `verify-runner` is unconditional; each of the other
+three is selected exactly when the rules module it audits is selected. This is
+not a new rule: `templates/process/ENFORCEMENT.md`'s honest-audit table already
+pairs each of these three modules with the agent that (advisory-)enforces it —
+this table just makes that pairing a selection decision instead of an
+observation.
+
+| Agent | Always? | Selected when | Audits |
+|---|---|---|---|
+| `verify-runner` | **YES** | — | The verify command itself — every stack, every PR |
+| `schema-reviewer` | if `database` selected | `database` module held (Q4) | Migrations and schema changes |
+| `integration-auditor` | if `data-integration` selected | `data-integration` module held (Q5/R3) | External-source adapters: retry, timeout, rate-limit, fixtures |
+| `contract-drift-checker` | if `contracts` selected | `contracts` module held (Q7) | This repo's handlers/webhooks against the pinned contract spec |
+
+**Rule:** an agent's job doesn't exist without the concern behind it — a
+`schema-reviewer` in a project with no `database` module has nothing to review
+and would just be advisory noise on every PR. Reuse `decided_modules`; do not
+ask a second question to re-derive what a first question already answered.
+
+At Step 3.7, write exactly: `verify-runner`, plus `schema-reviewer` /
+`integration-auditor` / `contract-drift-checker` for each of `database` /
+`data-integration` / `contracts` present in `decided_modules`. `/project-audit`
+checks the same pairing against `.claude/rules/*.md` already on disk (A20) —
+see `scripts/check_agents.py`.
