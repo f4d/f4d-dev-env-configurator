@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.23.3 — A23: this repo's own hooks anchored to ${CLAUDE_PROJECT_DIR}
+A reviewer caught what PR #29 missed: repo-relative hook commands
+(`hooks/x.sh`, shipped for this repo's own `.claude/settings.json`) only
+resolve while the spawning shell's cwd **is** the repo root, and Claude Code
+spawns every hook with cwd = wherever the session currently is. Confirmed live
+on CLI 2.1.220: a `PreToolUse:Bash` hook wired with a bare relative path fired
+once from root, then silently never fired again the moment the agent ran one
+ordinary `cd` — the secrets guard, rule-zero, and done-check would all go dark
+mid-session, no error, no log line. All six commands now anchor to
+**`${CLAUDE_PROJECT_DIR}`** — a real env var Claude Code sets on every hook
+process, distinct from `${CLAUDE_PLUGIN_ROOT}` (plugin-hooks-only; PR #29's
+finding on that variable is unchanged) — and the anchored form was proven to
+keep firing across the identical `cd` where the bare form went dark.
+
+**Honest bound, not silently papered over:** anchoring does not fix a session
+*launched* with cwd already inside a subdirectory — six live trials (both
+path forms, one- and two-level-deep launches) show `.claude/settings.json` is
+never discovered at all in that case, unlike `.claude/settings.local.json`,
+which is documented to resolve through the repo root. No command-path fix can
+help a file that's never read; tracked as **A23**, open. `tests/hooks_test.sh`
+gains three cases reproducing the exact resolution mechanism `.claude/settings.json`
+goes through (previous coverage invoked hooks via an absolute test-harness
+path, sidestepping this). 43 → 46 hook tests, 147 → 150 total.
+
 ## 1.22.2 — round-7 review fixes; S-04 honestly re-opened
 Seven findings, all real. The one that matters most is a reversal: **S-04 goes back to tracked debt** — shipping an `assertNever` helper nobody is required to import enforces nothing, and marking it done was scoreboard inflation; its promote-when is now eslint `switch-exhaustiveness-check` / mypy strict-enum integration in the scaffold verify (44 enforced, 8 debts — the honest numbers). Recall fixes, re-measured on GHL-MCP: block-bodied promise catches (`.catch(() => { return []; })`) now caught (62→64) and log-hygiene scans complete multiline calls (1→5 — a formatter putting `req.body` on the next line no longer hides it). Correctness fixes: C-08 counts `async def test_` and compares from the **merge base** (tests added to main after branching are not the PR's deletions); G-05 enumerates baseline fixture paths so an outright-deleted fixture file is the strongest case removal, not an invisible one; the conformance MANDATED list includes the three newest gate scripts.
 

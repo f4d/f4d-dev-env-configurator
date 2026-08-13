@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-11 · **Version shipped:** 1.22.2 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-13 · **Version shipped:** 1.23.3 · **Status:** all validation green (24/24 hooks, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -24,7 +24,7 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **144** | hooks (43) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (32) + companions (18) |
+| Tests | **150** | hooks (46) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (32) + companions (18) |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 44 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -294,6 +294,89 @@ test asserting every scanner agrees on one fixture tree.
 
 ---
 
+### A23 — this repo's own hook commands went dark the instant cwd left the repo root · **mid-session drift fixed in 1.23.3** · launch-from-subdirectory **still open** · effort S
+
+**Why:** a reviewer on the already-merged PR #29 pointed out that PR #29's fix
+(`${CLAUDE_PLUGIN_ROOT}` → repo-relative `hooks/x.sh`) traded one broken
+anchor for another: a repo-relative command only resolves while the spawning
+shell's cwd **is** the repo root, and `session-context.sh` itself is written
+to explicitly detect and support sessions that don't start there.
+
+**Confirmed live, CLI 2.1.220, `claude -p` (six independent fresh scratch
+repos, no shared state between runs):**
+
+1. **Mid-session cwd drift — real, and now fixed.** Session launched at repo
+   root (hooks correctly wired); agent runs `cd sub/deep` as an ordinary part
+   of its work; the **very next** Bash tool call's `PreToolUse` hook, wired
+   with the bare relative form, **never fired** — no error, no log line, ran
+   as if no guard existed. The identical hook anchored to
+   `${CLAUDE_PROJECT_DIR}` fired correctly both before and after the same
+   `cd`. This is the realistic, common-case failure — every session that
+   `cd`s into a package or subdir mid-work silently loses `guard.sh` (C-01
+   secrets, C-02 force-push, C-03 destructive SQL, C-09 destructive fs),
+   `rule-zero.sh` (C-05), and `done-check.sh` (C-04) from that point on.
+   **Fixed**: all six commands in `.claude/settings.json` now anchor to
+   `${CLAUDE_PROJECT_DIR}` — a real env var Claude Code sets on every hook
+   process (`code.claude.com/docs/en/hooks.md`), distinct from
+   `${CLAUDE_PLUGIN_ROOT}` (plugin-hook-only; PR #29's finding on that
+   variable stands unchanged) and pinned to the repo root regardless of later
+   `cd`s.
+2. **Session launched from a subdirectory — real, and NOT fixed by
+   anchoring.** Four more fresh scratch repos, launched with cwd one or two
+   levels below root: `.claude/settings.json` is **never discovered at all**
+   — not "fires with a wrong path", genuinely never read, hooks included,
+   regardless of whether the command inside it is a bare relative path OR
+   already `${CLAUDE_PROJECT_DIR}`-anchored (both forms tested, both silent).
+   An inline probe command with **zero path dependency** (`echo ... >>
+   /absolute/log`) also never fired, isolating this to settings **discovery**,
+   not command resolution. Docs support the asymmetry:
+   `.claude/settings.local.json` is explicitly documented to resolve through
+   the repo root "so one file covers sessions started in any subdirectory";
+   `.claude/settings.json` carries no such documented guarantee, and
+   empirically does not walk up. No command-path anchoring can fix a file
+   that is never read — the only mitigations are launching `claude` from the
+   repo root, or a materially different delivery mechanism (plugin-declared
+   `hooks/hooks.json`, which activates via plugin install rather than
+   cwd-relative discovery — this is what `fix/plugin-declared-hooks` builds
+   for **A18**/scaffolded consumer repos; whether to also adopt it for this
+   repo's own dogfood settings is future work, not done here).
+
+**Consequence for `session-context.sh` specifically:** its SessionStart
+firing only ever happens once, at true session start — so mid-session
+anchoring (item 1) cannot help it at all. A session launched from a
+subdirectory now correctly fires none of its guards (same as before this
+fix) **and** writes no `.session-log` line for that session — invisible, not
+mis-tagged. `session_report.py`, `/retro`, and `/promote-rule` all read that
+log; their counts undercount by exactly the sessions this affects. This is
+the same "silent gap reads as permission" shape A11 (plugin absence) and A18
+(scaffolded repos) already named, for a third trigger.
+
+**REGISTRY.md checked, no row edited:** O-01 ("repo rules load regardless of
+session cwd") stays **HOOK (session-context) · done** — correctly, per A15,
+because that guarantee is independently satisfied by Claude Code's native
+`CLAUDE.md`/`.claude/rules/*.md` auto-load (proven with no hook and no
+settings.json at all), and session-context.sh was already documented there as
+redundant defense-in-depth, "never to be cited as the reason rules load." The
+gap this entry found is in session-context's *other*, primary job
+(telemetry), which no existing row claims — nothing to correct, a real gap to
+track, hence this entry rather than a REGISTRY.md edit.
+
+**Done-when (item 1, closed):** a hook wired with a bare relative path
+demonstrably fails (exit 127) from a non-root cwd; the identical hook
+anchored to `${CLAUDE_PROJECT_DIR}` demonstrably succeeds from the same cwd;
+every command actually shipped in `.claude/settings.json` is asserted
+anchored, generically, as a regression guard. All three met —
+`tests/hooks_test.sh` § *settings.json hook command resolution*.
+
+**Open (item 2):** no fix exists at the `.claude/settings.json` level. Next
+step, if picked up: either document "launch from the repo root" as a stated
+operational constraint with a startup self-check, or extend
+`fix/plugin-declared-hooks`' mechanism to this repo's own dogfood hooks.
+
+**Files:** `.claude/settings.json`, `tests/hooks_test.sh`
+
+---
+
 ### First live test — executed 2026-08-10, findings folded back
 
 Target: `roofadvisor/GHL-MCP` on a scratch clone; deliverable is their PR #1042
@@ -448,6 +531,9 @@ NOW      A18  scaffolded repos have a DEAD enforcement layer   <- CRITICAL, bloc
 NEXT     A20  agent wiring (verify-runner absent, no selection rule, never audited)
          A21  SKIP tuple dedup — the kit's own S-05 violation
          A17  object-member guess-list gate
+         A23  session-context.sh still writes no telemetry for a session
+              launched from a subdirectory (mid-session drift fixed 1.23.3;
+              this residual needs the A18 mechanism or a documented constraint)
 
 SOON     O4   tier-2 combo runs — ALSO the acceptance test for A18+A19,
               since it is an end-to-end /project-init exercise. Run it after them.

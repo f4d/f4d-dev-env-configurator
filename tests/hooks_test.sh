@@ -3,7 +3,8 @@
 # A guard that has never been seen to fail is not a guard.
 set -uo pipefail
 HOOKS="$(cd "$(dirname "$0")/../hooks" && pwd)"
-KIT_LOG_PATH="$(cd "$HOOKS/.." && pwd)/.claude/.enforcement-log"
+KIT="$(cd "$HOOKS/.." && pwd)"
+KIT_LOG_PATH="$KIT/.claude/.enforcement-log"
 KIT_LOG_BEFORE="$(cat "$KIT_LOG_PATH" 2>/dev/null | cksum)"
 pass=0; fail=0
 
@@ -60,6 +61,78 @@ else echo "  FAIL  writes telemetry for every session"; fail=$((fail+1)); fi
 if (cd /tmp && bash "$HOOKS/session-context.sh" >/dev/null 2>&1); then
   echo "  PASS  exits 0 outside any git repo"; pass=$((pass+1))
 else echo "  FAIL  exits 0 outside any git repo"; fail=$((fail+1)); fi
+
+echo "settings.json hook command resolution (A23)"
+# PR #29 anchored ${CLAUDE_PLUGIN_ROOT} -> repo-relative paths (hooks/x.sh).
+# That is not enough: a repo-relative command only resolves while the
+# spawning shell's cwd IS the repo root, and Claude Code spawns each hook
+# command with cwd = wherever the session currently is — which drifts the
+# moment the agent runs `cd`. Every case above invokes hooks/*.sh directly
+# through the absolute $HOOKS var, which sidesteps exactly this mechanism —
+# the reviewer's finding on PR #29's own follow-up. These cases instead read
+# the REAL .claude/settings.json and execute its command strings the way
+# Claude Code does: CLAUDE_PROJECT_DIR set on the process, "bash -c
+# \"\$command\"", cwd deliberately NOT the repo root. Live-verified on CLI
+# 2.1.220 (docs/BACKLOG.md A23): a PreToolUse:Bash hook wired with a bare
+# relative path fired once from root, then silently never fired again the
+# moment the session `cd`'d one level down — this harness reproduces that
+# exact resolution step, not just the hook script's own internal logic.
+sjr=$(mktemp -d); ( cd "$sjr" && git init -q )
+mkdir -p "$sjr/deep/er"
+
+# RED: the pre-1.23.3 bare-relative form, reconstructed, from a non-root cwd.
+( cd "$sjr/deep/er" && CLAUDE_PROJECT_DIR="$KIT" bash -c "hooks/session-context.sh" ) >/dev/null 2>&1
+got=$?
+if [ "$got" -eq 127 ]; then
+  echo "  PASS  RED: bare relative command fails to resolve from a non-root cwd (got exit 127)"; pass=$((pass+1))
+else
+  echo "  FAIL  RED: bare relative command should fail to resolve (127) from a non-root cwd, got $got"; fail=$((fail+1))
+fi
+
+# GREEN, precise: the identical cwd-drift scenario the RED case just proved
+# broken, this time through the ${CLAUDE_PROJECT_DIR}-anchored form.
+( cd "$sjr/deep/er" && CLAUDE_PROJECT_DIR="$KIT" bash -c '${CLAUDE_PROJECT_DIR}/hooks/session-context.sh' ) >/dev/null 2>&1
+got=$?
+if [ "$got" -eq 0 ]; then
+  echo "  PASS  GREEN: \${CLAUDE_PROJECT_DIR}-anchored command resolves from the same non-root cwd where the bare form failed"; pass=$((pass+1))
+else
+  echo "  FAIL  GREEN: anchored command should resolve (exit 0) from a non-root cwd, got $got"; fail=$((fail+1))
+fi
+
+# GREEN, generic: every command this repo actually ships in .claude/settings.json
+# — a regression guard, not a copy. Verdict per hook is irrelevant here (each
+# hook's own business logic is already covered above via $HOOKS); the only
+# thing this loop can catch is resolution, and "command not found" is exit 127
+# everywhere this harness runs.
+commands=$(python3 -c "
+import json
+d = json.load(open('$KIT/.claude/settings.json'))
+for entries in d.get('hooks', {}).values():
+    for entry in entries:
+        for h in entry.get('hooks', []):
+            if h.get('type') == 'command':
+                print(h['command'])
+" 2>/dev/null)
+settings_fail=0; settings_count=0
+while IFS= read -r cmd; do
+  [ -z "$cmd" ] && continue
+  settings_count=$((settings_count+1))
+  case "$cmd" in
+    '${CLAUDE_PROJECT_DIR}/'*) : ;;
+    *) echo "  FAIL  settings.json ships a command not anchored to \${CLAUDE_PROJECT_DIR}: $cmd"; settings_fail=1; continue ;;
+  esac
+  echo '{}' | ( cd "$sjr/deep/er" && CLAUDE_PROJECT_DIR="$KIT" bash -c "$cmd" ) >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 127 ]; then
+    echo "  FAIL  settings.json command did not resolve from a non-root cwd: $cmd"; settings_fail=1
+  fi
+done <<< "$commands"
+if [ "$settings_fail" -eq 0 ] && [ "$settings_count" -gt 0 ]; then
+  echo "  PASS  GREEN: all $settings_count settings.json hook commands resolve from a non-root cwd"; pass=$((pass+1))
+else
+  fail=$((fail+1))
+fi
+rm -rf "$sjr"
 
 echo "done-check.sh"
 dc=$(mktemp -d); ( cd "$dc" && git init -q && git config user.email t@t && git config user.name t && echo "x" > a.py && git add -A && git commit -qm init && echo "y" >> a.py )
