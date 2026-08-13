@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.23.2 — A22: `verify.sh` now actually runs the checks it claimed to skip
+Reviewer finding on an already-merged PR: `scripts/verify.sh` — the kit's one
+advertised local verify command — printed "skipped locally (need BASE_REF —
+CI runs these)" for `check_commits` (C-06) and `check_test_count` (C-08)
+**unconditionally**, even when the caller (CI, or a person who exported
+`BASE_REF` locally, exactly as intended) actually had it set. A branch with a
+non-conventional commit subject, or one that deletes tests with no stated
+reason, could report `VERIFY PASSED` locally while `gates.yml` correctly
+failed the identical commit in CI — the two "verify" mechanisms diverged, and
+the one this kit tells people to trust locally was the weaker one. If you run
+`verify.sh` with `BASE_REF` set (matching CI's `BASE_REF=origin/<base
+branch>`), it now runs both checks for real, the same invocation `gates.yml`
+uses, and reports their actual pass/fail. No `BASE_REF` still skips, and the
+skip is still printed, unchanged. Red-then-green proof, including a second
+bug the proof surfaced (a caller's `BASE_REF` was leaking into the test
+harnesses' own internal BASE_REF-set/unset assertions, now isolated), is in
+`docs/acceptance/2026-08-13-a22-verify-sh-base-ref-gates.md`.
+
+
 ## 1.22.2 — round-7 review fixes; S-04 honestly re-opened
 Seven findings, all real. The one that matters most is a reversal: **S-04 goes back to tracked debt** — shipping an `assertNever` helper nobody is required to import enforces nothing, and marking it done was scoreboard inflation; its promote-when is now eslint `switch-exhaustiveness-check` / mypy strict-enum integration in the scaffold verify (44 enforced, 8 debts — the honest numbers). Recall fixes, re-measured on GHL-MCP: block-bodied promise catches (`.catch(() => { return []; })`) now caught (62→64) and log-hygiene scans complete multiline calls (1→5 — a formatter putting `req.body` on the next line no longer hides it). Correctness fixes: C-08 counts `async def test_` and compares from the **merge base** (tests added to main after branching are not the PR's deletions); G-05 enumerates baseline fixture paths so an outright-deleted fixture file is the strongest case removal, not an invisible one; the conformance MANDATED list includes the three newest gate scripts.
 
