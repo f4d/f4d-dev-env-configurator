@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-13 · **Version shipped:** 1.23.5 · **Status:** all validation green (261/261 test assertions, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-13 · **Version shipped:** 1.23.6 · **Status:** all validation green (262/262 test assertions, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -24,7 +24,7 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **261** | hooks (57) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (48) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
+| Tests | **262** | hooks (57) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (49) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 45 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -477,6 +477,56 @@ matches the recorded framework state. 4 harness cases red-green.
 `REGISTRY.md` § *Reading this file* now states permanence (supersede with a new
 ID, never renumber); `render_registry.py --validate` and `upgrade.py` fail on
 any reference to an ID that does not exist.
+
+---
+
+### A24 — `pip install pyyaml` was named but not pinned, so CI could still diverge · ✅ built in 1.23.6
+
+**Why:** a reviewer flagged the merged PR #26 fix as incomplete. Naming PyYAML
+as an explicit dependency stopped the *runner-image* divergence (`gates.yml`
+vs `main-verify.yml` disagreeing on what came preinstalled), but an unpinned
+`pip install pyyaml` still lets pip resolve whatever release is newest **at
+run time** — a new PyYAML landing on PyPI between the PR's `gates.yml` run and
+the later `main-verify.yml` run on the merge commit reproduces the identical
+"green for a reason nothing in this repo controls" problem one layer down, and
+could make an unchanged commit's conformance result depend on when it happened
+to be re-run.
+
+**Build:** both workflows now pin the identical version —
+`pip install pyyaml==6.0.3` in both `gates.yml` and `main-verify.yml` — plus
+the matching local-dev preflight message in `tests/conformance_test.sh`. No
+shared lock/constraints file: checked first that this repo has no other
+Python dependency (no `requirements.txt`/`constraints.txt`/`pyproject.toml`
+anywhere in the tree, and every `scripts/*.py` imports only stdlib + `yaml`),
+so a lock file for one package would be its own S-05-shaped debt — two
+identical pinned lines, each already carrying its own explanatory comment
+about *why* it's pinned, is proportionate instead.
+
+Two repeated pins can still drift apart one file at a time under a future
+edit — the comment saying "bump both together" is a request, not an
+enforcement, and this repo's own doctrine treats that gap as debt to
+mechanize rather than trust. `conformance_test.sh` already parses both
+workflow files for other reasons, so it gained one more assertion: both
+`pip install pyyaml==` lines must be present and byte-identical, named after
+this item so a future failure points back here. `verify.sh`: 147 → 148
+assertions (conformance 32 → 33; §0's table corrected alongside — it already
+undercounted at 144 before this change, 43+11+39+4+32+18=147, not 144).
+
+**Proof.** Two different classes of claim, two different kinds of evidence:
+
+- *The version pin itself* cannot get red-then-green — a future PyPI release
+  can't be forced to exist for a test. Proven by determinism instead: two
+  independent `pip install pyyaml==6.0.3` runs in clean virtualenvs both
+  resolved to `6.0.3`, and both workflow files grep to the byte-identical pin
+  string `pip install pyyaml==6.0.3`. PR body has the exact commands.
+- *The new same-pin guard* **can** get red-then-green, and did: temporarily
+  edited `main-verify.yml`'s pin to `6.0.2` (leaving `gates.yml` at `6.0.3`),
+  ran `conformance_test.sh` — FAILED with `gates.yml pins 'pip install
+  pyyaml==6.0.3' but main-verify.yml pins 'pip install pyyaml==6.0.2'`,
+  restored, ran again — PASSED. This is the guard-hygiene bar this repo holds
+  every new check to (START_HERE.md non-negotiable 1).
+
+**Files:** `.github/workflows/gates.yml`, `.github/workflows/main-verify.yml`, `tests/conformance_test.sh`
 
 ---
 
