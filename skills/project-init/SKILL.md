@@ -194,15 +194,15 @@ Read `references/scaffold-spec.md` for exact file contents and layout. At entry 
    - Multi-instance project → `docker-compose.multi.yml` (two app instances, nginx round-robin, redis, and a **separate migrate step**) plus `scripts/nginx-lb.conf`. **This is the default.** One instance locally makes every statefulness bug invisible until production.
    - Single-instance project → `docker-compose.yml`, and ADR 002 recording that choice with its reversal cost.
 9. `verify` script in `package.json` and/or `Makefile`
-10. `.github/workflows/` — `verify.yml` running the same command, plus `claude.yml`, `claude-code-review.yml`, and `notion-sync.yml` from `${CLAUDE_PLUGIN_ROOT}/templates/github/` if the org profile has `claude_github_app: installed` and `notion_work_db` set. Copy `scripts/notion_sync.py` to `.github/scripts/`.
+10. `.github/workflows/` — `verify.yml`, always, rendered from `${CLAUDE_PLUGIN_ROOT}/templates/scaffold/verify.yml.tmpl` (fill `{{DB_NAME}}`, `{{SETUP_CMDS}}`, `{{VERIFY}}` — same token-fill pattern as `CLAUDE.md.tmpl` in step 2 — so the workflow runs the command step 9 established). If the org profile has `claude_github_app: installed` and `notion_work_db` set, also copy `claude.yml` from `${CLAUDE_PLUGIN_ROOT}/templates/github/claude.yml`, `claude-code-review.yml` from `${CLAUDE_PLUGIN_ROOT}/templates/github/claude-code-review.yml`, and `notion-sync.yml` from `${CLAUDE_PLUGIN_ROOT}/templates/github/notion-sync.yml`; then copy `scripts/notion_sync.py` to `.github/scripts/`.
    Also write `.github/ISSUE_TEMPLATE/bug.yml` and `feature.yml` — structured enough that `@claude` can act on a report directly.
 11. **Process layer** — always, regardless of project size:
    - `docs/specs/`, `docs/decisions/`, `docs/log.md`, `docs/intake.md`
    - `docs/LIFECYCLE.md`, `docs/DEFINITION.md`, `docs/ENFORCEMENT.md`, and `docs/TEST_STRATEGY.md` copied from `${CLAUDE_PLUGIN_ROOT}/templates/process/`
    - `tests/hooks_test.sh` copied from the kit, and wired into the verify command
    - `templates/tests/guard_tests.{py,ts}` copied to the project suite — S-01 and S-02 apply to every project
-   - `.github/workflows/gates.yml` plus `scripts/check_*.py` copied to `.github/scripts/` — only the jobs whose rules this project holds. Delete the rest; a gate for a rule the project does not have will fail confusingly.
-   - `.github/workflows/preflight.yml` — asserts required secrets exist before anything depends on them
+   - `.github/workflows/gates.yml`, copied from `${CLAUDE_PLUGIN_ROOT}/templates/github/gates.yml`, plus `scripts/check_*.py` copied to `.github/scripts/` — only the jobs whose rules this project holds. Delete the rest; a gate for a rule the project does not have will fail confusingly.
+   - `.github/workflows/preflight.yml`, copied from `${CLAUDE_PLUGIN_ROOT}/templates/github/preflight.yml` — asserts required secrets exist before anything depends on them
    - Set the `SINGLE_INSTANCE` repo variable to `1` for single-instance projects, so the statelessness gate does not fire wrongly. A gate that fires wrongly gets disabled, and a disabled gate protects nothing.
    - Run `scripts/upgrade.py --apply` once at the end to record the framework baseline in `.claude/.framework-state.json`. Without it, the first upgrade cannot tell a local customization from a framework change.
    - `.gitignore` entries for `.claude/.session-log`, `.claude/.last-verify`, `.claude/.enforcement-log`, and `.claude/.init-state.json` — local telemetry and working state, not shared

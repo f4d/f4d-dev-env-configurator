@@ -18,7 +18,7 @@ bash tests/hooks_test.sh                      # expect: pass=40 fail=0
 bash tests/render_registry_test.sh            # expect: pass=11 fail=0
 bash tests/gate_trio_test.sh                  # expect: pass=39 fail=0
 bash tests/statelessness_test.sh              # expect: pass=4 fail=0
-bash tests/conformance_test.sh                # expect: pass=29 fail=0
+bash tests/conformance_test.sh                # expect: pass=38 fail=0
 python3 scripts/check_statelessness.py        # expect: clean
 python3 scripts/check_guess_lists.py          # expect: clean
 
