@@ -75,6 +75,26 @@ for f in "$KIT"/templates/github/*.yml; do
   else bad "$(basename "$f") does not parse as YAML"; fi
 done
 
+echo
+echo "the kit's own CI pins PyYAML identically in both workflows (A22)"
+# gates.yml and main-verify.yml each install PyYAML independently (they are
+# different jobs on different triggers — PR vs push-to-master — so neither can
+# just depend on the other having run). A22 pinned both to stop the version
+# drifting apart between two runs of an unchanged commit; nothing but a code
+# comment stopped a future edit from re-diverging them one file at a time.
+# This makes that mechanical instead of a request.
+GATES_PIN=$(grep -ohE 'pip install pyyaml==[0-9][0-9.]*' "$KIT/.github/workflows/gates.yml" | head -1)
+MAIN_PIN=$(grep -ohE 'pip install pyyaml==[0-9][0-9.]*' "$KIT/.github/workflows/main-verify.yml" | head -1)
+if [ -z "$GATES_PIN" ]; then
+  bad "gates.yml has no pinned 'pip install pyyaml==X.Y.Z' (bare/unpinned install reopens A22)"
+elif [ -z "$MAIN_PIN" ]; then
+  bad "main-verify.yml has no pinned 'pip install pyyaml==X.Y.Z' (bare/unpinned install reopens A22)"
+elif [ "$GATES_PIN" != "$MAIN_PIN" ]; then
+  bad "gates.yml pins '$GATES_PIN' but main-verify.yml pins '$MAIN_PIN' — the exact divergence A22 fixed, reintroduced"
+else
+  ok "both workflows pin identical: $GATES_PIN"
+fi
+
 echo "scaffold templates exist (and compose files parse)"
 for f in docker-compose.yml.tmpl docker-compose.multi.yml.tmpl CLAUDE.md.tmpl gitignore.tmpl env.example.tmpl verify.yml.tmpl dev-reset.sh.tmpl nginx-lb.conf guard-local.sh; do
   if [ -s "$KIT/templates/scaffold/$f" ]; then ok "templates/scaffold/$f"; else bad "templates/scaffold/$f MISSING or empty"; fi

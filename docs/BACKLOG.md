@@ -24,7 +24,7 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **144** | hooks (43) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (32) + companions (18) |
+| Tests | **148** | hooks (43) + render_registry (11) + gate_trio (39) + statelessness (4) + conformance (33) + companions (18) |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 44 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -364,12 +364,29 @@ so a lock file for one package would be its own S-05-shaped debt — two
 identical pinned lines, each already carrying its own explanatory comment
 about *why* it's pinned, is proportionate instead.
 
-**Proof, not red-then-green:** a future PyPI release can't be forced to exist
-for a test, so the fix is proven the other way — two independent
-`pip install pyyaml==6.0.3` runs in clean virtualenvs both resolved to
-`6.0.3`, and both workflow files grep to the byte-identical pin string
-`pip install pyyaml==6.0.3`. That determinism is what "pinned" means to prove
-here; PR body has the exact commands.
+Two repeated pins can still drift apart one file at a time under a future
+edit — the comment saying "bump both together" is a request, not an
+enforcement, and this repo's own doctrine treats that gap as debt to
+mechanize rather than trust. `conformance_test.sh` already parses both
+workflow files for other reasons, so it gained one more assertion: both
+`pip install pyyaml==` lines must be present and byte-identical, named after
+this item so a future failure points back here. `verify.sh`: 147 → 148
+assertions (conformance 32 → 33; §0's table corrected alongside — it already
+undercounted at 144 before this change, 43+11+39+4+32+18=147, not 144).
+
+**Proof.** Two different classes of claim, two different kinds of evidence:
+
+- *The version pin itself* cannot get red-then-green — a future PyPI release
+  can't be forced to exist for a test. Proven by determinism instead: two
+  independent `pip install pyyaml==6.0.3` runs in clean virtualenvs both
+  resolved to `6.0.3`, and both workflow files grep to the byte-identical pin
+  string `pip install pyyaml==6.0.3`. PR body has the exact commands.
+- *The new same-pin guard* **can** get red-then-green, and did: temporarily
+  edited `main-verify.yml`'s pin to `6.0.2` (leaving `gates.yml` at `6.0.3`),
+  ran `conformance_test.sh` — FAILED with `gates.yml pins 'pip install
+  pyyaml==6.0.3' but main-verify.yml pins 'pip install pyyaml==6.0.2'`,
+  restored, ran again — PASSED. This is the guard-hygiene bar this repo holds
+  every new check to (START_HERE.md non-negotiable 1).
 
 **Files:** `.github/workflows/gates.yml`, `.github/workflows/main-verify.yml`, `tests/conformance_test.sh`
 
