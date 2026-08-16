@@ -147,6 +147,63 @@ else
 fi
 rm -rf "$sjr"
 
+echo "A23 item 2 — subdirectory-launched telemetry, closed by the plugin dogfood opt-in"
+# The mid-session cwd-drift half of A23 is covered by the settings.json
+# resolution section above. The other half — a session LAUNCHED with cwd
+# already inside a subdirectory — cannot be closed at the .claude/settings.json
+# level: that file is never discovered from a subdir (six live trials, CLI
+# 2.1.220; docs/BACKLOG.md A23). The fix is the A18 plugin-declared hooks in
+# hooks/hooks.json, which Claude Code registers at plugin-INSTALL time and fires
+# for every session regardless of cwd, plus this repo's own committed
+# .claude/.framework-state.json, which opts it into that global path. Claude
+# Code's install-time firing is not reproducible in bash; the two pieces that
+# ARE verifiable here — and that together determine closure given that firing —
+# are asserted below. Documented bound: a session in this repo with the plugin
+# NOT installed still depends on settings.json (root-launch only); that residual
+# is stated in docs/BACKLOG.md A23, not closed here.
+
+# 1. The dogfood opt-in is real AND committed — not a stray local artifact. If
+#    this marker is ever removed or untracked, every plugin-path hook in this
+#    repo (session-context telemetry included) goes dark for EVERY cwd,
+#    reopening the exact gap. git-tracked, not merely present on disk, is the
+#    regression lock.
+if [ -f "$KIT/.claude/.framework-state.json" ] \
+   && git -C "$KIT" ls-files --error-unmatch .claude/.framework-state.json >/dev/null 2>&1; then
+  echo "  PASS  this repo's own .claude/.framework-state.json is present AND git-tracked (dogfood opt-in committed)"; pass=$((pass+1))
+else
+  echo "  FAIL  this repo's dogfood opt-in (.claude/.framework-state.json) is missing or untracked — plugin-path hooks go dark"; fail=$((fail+1))
+fi
+
+# 2. hook_opted_in resolves the repo root from a nested subdir (one git
+#    rev-parse, no cwd assumption), so session-context.sh — once the plugin
+#    fires it — writes a telemetry line for a subdir-launched session, tagged
+#    'subdir' with the relative path. That line was previously not mis-tagged
+#    but genuinely absent; GREEN proves it now appears.
+subdirfix=$(mktemp -d); ( cd "$subdirfix" && git init -q ); mkstate "$subdirfix"
+mkdir -p "$subdirfix/pkg/deep"
+( cd "$subdirfix/pkg/deep" && bash "$HOOKS/session-context.sh" ) >/dev/null 2>&1
+last=$(tail -1 "$subdirfix/.claude/.session-log" 2>/dev/null)
+f2=$(printf '%s' "$last" | cut -f2); f3=$(printf '%s' "$last" | cut -f3)
+if [ "$f2" = "subdir" ] && [ "$f3" = "pkg/deep" ]; then
+  echo "  PASS  GREEN: session-context.sh writes a 'subdir'-tagged telemetry line when fired from a subdirectory of an opted-in repo"; pass=$((pass+1))
+else
+  echo "  FAIL  GREEN: expected a subdir/pkg/deep telemetry line, got f2='$f2' f3='$f3'"; fail=$((fail+1))
+fi
+
+# RED: strip the opt-in marker and the identical subdir invocation must go
+# silent — proving the closure is gated on the dogfood opt-in, not incidental.
+# (Distinct from the A18 non-opted-in section, which invokes from the repo
+# root; this isolates the SUBDIR path specifically.)
+rm -f "$subdirfix/.claude/.framework-state.json"
+: > "$subdirfix/.claude/.session-log"
+( cd "$subdirfix/pkg/deep" && bash "$HOOKS/session-context.sh" ) >/dev/null 2>&1
+if [ ! -s "$subdirfix/.claude/.session-log" ]; then
+  echo "  PASS  RED: the same subdir invocation writes no telemetry once the opt-in marker is removed"; pass=$((pass+1))
+else
+  echo "  FAIL  RED: subdir invocation wrote telemetry with no opt-in marker present"; fail=$((fail+1))
+fi
+rm -rf "$subdirfix"
+
 echo "settings.json hook commands survive a project directory containing a space"
 # Reviewer finding on this same PR (discussion_r3776532413): every case above
 # sets CLAUDE_PROJECT_DIR="$KIT", which never contains a space, so the section
