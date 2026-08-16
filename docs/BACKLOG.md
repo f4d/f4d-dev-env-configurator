@@ -1,6 +1,6 @@
 # BACKLOG — f4d-kit
 
-**Last updated:** 2026-08-13 · **Version shipped:** 1.23.8 · **Status:** all validation green (272/272 test assertions, self-scans clean, all workflows parse)
+**Last updated:** 2026-08-13 · **Version shipped:** 1.23.8 · **Status:** all validation green (273/273 test assertions, self-scans clean, all workflows parse)
 
 > **Resume protocol.** If a session ends mid-work: read this file top to bottom,
 > then `git log --oneline -5` to see where the last one stopped. Every item below
@@ -24,7 +24,7 @@
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
 | Framework ADRs | 3 | plugin distribution, GitHub over Linear, registry-over-enforce-all |
-| Tests | **272** | hooks (67) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (49) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
+| Tests | **273** | hooks (68) + render_registry (11) + gate_trio (54) + statelessness (4) + conformance (49) + companions (18) + scanner_agreement (8) + agent_presence (34) + notion_sync (27) — measured via `bash scripts/verify.sh`, 2026-08-13 |
 | CI | 2 workflows | `gates.yml` (PR) + `main-verify.yml` (push to master) — the kit ran none of its own gates until 2026-08-12 |
 
 **Rule status:** 45 mechanically enforced · 8 tracked debt with triggers · 13 judgment · rest scaffold/agent. (S-04 honestly re-opened in 1.22.2: an unused helper enforces nothing — its promote-when is now toolchain lint integration.)
@@ -516,9 +516,9 @@ independent — so `session-context.sh`, once fired, writes a correct
 `subdir`-tagged `.session-log` line for a session launched anywhere in the tree.
 The earlier "future work, not done here" note in item 2 above predated that
 merge and was stale. Locked against regression by `tests/hooks_test.sh` §
-*A23 item 2* — three assertions: the dogfood marker is present AND git-tracked;
+*A23 item 2* — four assertions: the dogfood marker is present AND git-tracked;
 a subdir invocation of an opted-in repo writes `subdir`-tagged telemetry; the
-same invocation goes silent once the marker is removed (64 → 67 hook tests).
+same invocation goes silent once the marker is removed; and the plugin manifest declares session-context.sh under SessionStart specifically, so the delivery that fires the telemetry cannot be silently re-mapped to another event (a gap a reviewer caught on PR #40) — 64 → 68 hook tests.
 **Honest bound:** closure holds whenever the plugin is installed — the normal
 dev state, and the installed state recorded in §0. A session in this repo with
 the plugin *not* installed still falls back to `.claude/settings.json`, which is

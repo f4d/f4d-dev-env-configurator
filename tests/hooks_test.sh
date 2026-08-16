@@ -204,6 +204,28 @@ else
 fi
 rm -rf "$subdirfix"
 
+# 4. The three assertions above invoke session-context.sh DIRECTLY — that locks
+#    the script's behavior but NOT the plugin delivery that actually fires it.
+#    A reviewer on PR #40 caught the gap: move the command from SessionStart to
+#    PostToolUse in hooks/hooks.json and all three stay green, yet a subdir-
+#    launched session gets no session-START telemetry (conformance_test.sh
+#    compares only script basenames, so it misses the wrong event). Lock the
+#    event mapping itself: session-context.sh must be declared under
+#    SessionStart, and ONLY there, in the plugin manifest that closes item 2.
+sc_event=$(python3 -c "
+import json
+d = json.load(open('$KIT/hooks/hooks.json'))
+evs = sorted({ev for ev, entries in d.get('hooks', {}).items()
+              for entry in entries for h in entry.get('hooks', [])
+              if 'session-context.sh' in h.get('command', '')})
+print(','.join(evs) or 'NONE')
+")
+if [ "$sc_event" = "SessionStart" ]; then
+  echo "  PASS  hooks/hooks.json declares session-context.sh under SessionStart, and only there (the plugin delivery that fires the telemetry closing A23 item 2)"; pass=$((pass+1))
+else
+  echo "  FAIL  session-context.sh must be declared under SessionStart in hooks/hooks.json — found: $sc_event (moving it elsewhere leaves a subdir session with no session-start telemetry)"; fail=$((fail+1))
+fi
+
 echo "settings.json hook commands survive a project directory containing a space"
 # Reviewer finding on this same PR (discussion_r3776532413): every case above
 # sets CLAUDE_PROJECT_DIR="$KIT", which never contains a space, so the section
