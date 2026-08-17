@@ -53,6 +53,29 @@ through a single **interactive interview**, and the agent does the analysis
 The rule: the agent workflows the process up to the decision point; the human
 only ever approves final inclusion.
 
+## Safe partial adoption — do no harm (governing principle)
+
+These repos are live and in production. The kit must be safe to adopt one slice
+at a time, across many repos, without its own machinery breaking the host. Four
+invariants, above all six capabilities:
+
+1. **Un-opted-in repos are inert.** Every plugin-declared hook calls
+   `hook_opted_in()` first and exits 0 unless the repo carries
+   `.claude/.framework-state.json`. Installing the kit enforces nothing in a repo
+   that has not opted in — the many RoofAdvisor repos we have not touched are
+   unaffected.
+2. **Never wire a gate for a rule the repo does not hold.** A gate that fires on
+   an absent rule is a confusing red build — harm. Only the jobs whose rules the
+   repo actually holds are written; the rest are deleted, and a check verifies it.
+3. **Never move or rename without repointing consumers.** Any relocation
+   inventories code + test + link consumers and repoints them in the same step
+   (the AR-AP lesson); a bare redirect stub is not an acceptable outcome.
+4. **Every proposed change carries a pre-flight harm check.** Before the audit
+   proposes a change it answers: would this go red on the current baseline, break
+   a consumer, or make a hook block a live workflow? If yes, it is flagged and
+   never auto-applied. Each adoption slice is independently safe and reversible;
+   "partially adopted" is a first-class, reported state, never a broken one.
+
 ## Success looks like
 
 Each is verifiable by someone outside this work.
@@ -194,9 +217,9 @@ a dangling declaration.
 
 ## Open questions
 
-- MANUAL attestation storage: PR-body section (proposed) vs a committed `attestations/` file for audit trails on regulated paths. Decide in the ADR.
-- Instruction-sync default tool set: render AGENTS.md + GEMINI.md by default, or interview-gate each tool? (Leaning: default Claude + Cursor + AGENTS.md; GEMINI.md gated.)
-- Does `check_docs_layout.py` *move* promoted docs or only *propose* the move for the human to run? (Leaning: propose in audit, apply on approval — consistent with the interaction model.)
+- *Resolved 2026-08-17:* **MANUAL attestation** → a committed `attestations/` file is the record for regulated / accuracy-critical paths (durable audit trail); a PR-body `## Attestation` section is accepted for lightweight cases. The ADR fixes the file format and which paths require the committed file (per-path vs per-PR).
+- *Resolved 2026-08-17:* **Instruction-sync defaults** → render `CLAUDE.md`, `.cursor/rules/*`, and `AGENTS.md` by default; `GEMINI.md` is interview-gated (rendered only when the team declares Gemini).
+- *Resolved 2026-08-17:* **`check_docs_layout.py`** → proposes the move in the audit, then **applies it on approval** — performing the file move AND repointing code/test consumers in one step, never a bare stub.
 
 ## Decisions this depends on
 
@@ -223,3 +246,4 @@ The repo->plugin loop above is already live — the AP+AR audit (PR #84) surface
 
 1. **Doc relocation must repoint executable consumers, not just links** (folded into the artifact-ladder Enforce+promote above). AR-AP keeps 30 specs / 25 plans under `docs/superpowers/{specs,plans}`; a proposed move to `docs/{specs,plans}` with redirect stubs broke content-based tests that read those files (`tests/test_phase6_governance_docs.py`, `scripts/phase3_exit_readiness.py`). The canonical-doc-layout promote step owns this inventory — code and tests, not only cross-doc links.
 2. **Audit code-level findings must scope to the affected paths.** AR-AP's audit claimed currency was `float` "end to end," but `canonical_records._money()` and the `reporting_views` rollups already use `Decimal`; only the workbook/report paths are float. `/project-audit`'s money/precision spot-check must report **per-path** (Decimal-correct vs float) and scope any proposed migration to the float paths only — overclaiming inflates the work and erodes trust in the finding. This pairs with the domain/MANUAL money tier (capability 4): accuracy-critical money paths are exactly where a MANUAL attestation belongs, and the audit must locate them precisely rather than sweep correct paths into the change.
+3. **Grep is a lead, not a verdict — search the lexicon, corroborate before concluding.** A zero-result grep is not evidence of absence, and a single-term grep is not evidence of presence: the same concept and the same *symptom* wear different words across platforms (money: `amount` / `total` / `price` / `monetaryValue` / `cents` / `Decimal` / `float`; failures: "connection refused" / `ECONNREFUSED` / "tunnel error"). The audit and the code-level scanners search against a **concept-lexicon** (and a symptom-lexicon for troubleshooting), and a finding requires corroboration — read the call site, run the synonym set — before it is written as MISSING or a FINDING. This extends "evidence over recollection" and Rule 0's "a single-file search is not evidence of absence" with the lexicon dimension, and it is how CB-03's false positives are killed before they are recorded rather than by mechanizing intent.
