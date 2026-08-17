@@ -124,7 +124,7 @@ canonical home fails the gate and names where it belongs; a `.superpowers/sdd/` 
 canonical home (superpowers stays the *authoring* tool; the kit *files* the
 durable artifact so the whole team and every AI tool find it in one place). The
 `.superpowers/sdd/.gitignore` means those artifacts may never be committed — the
-promote step is what makes the design doc durable and shared.
+promote step is what makes the design doc durable and shared. Relocation is never just a file move: scripts and tests routinely hard-code doc paths — observed live in AR-AP PR #84, where `scripts/cross_phase_quality_gates.py` and `tests/test_phase6_governance_docs.py` read files under `docs/superpowers/plans/`. `check_docs_layout.py` therefore inventories the **executable and test consumers** of any path it proposes to move, and the promote step repoints them; a redirect stub alone leaves a content-based test reading a five-line stub and failing. Repoint code and tests, not only cross-doc links.
 
 ## Learning flow back (repo → plugin)
 
@@ -216,3 +216,10 @@ The interview/audit **config layer** (new Round 4 in `/project-init`; matching
 `/project-audit` discovery + approval pass) is extended as each capability lands —
 a capability isn't "done" until a new *or* retrofit repo can turn it on through
 the interview and have the audit report its absence and propose its adoption.
+
+## First learnings feeding this spec (AR-AP audit, 2026-08-16)
+
+The repo->plugin loop above is already live — the AP+AR audit (PR #84) surfaced two refinements before this spec ships:
+
+1. **Doc relocation must repoint executable consumers, not just links** (folded into the artifact-ladder Enforce+promote above). AR-AP keeps 30 specs / 25 plans under `docs/superpowers/{specs,plans}`; a proposed move to `docs/{specs,plans}` with redirect stubs broke content-based tests that read those files (`tests/test_phase6_governance_docs.py`, `scripts/phase3_exit_readiness.py`). The canonical-doc-layout promote step owns this inventory — code and tests, not only cross-doc links.
+2. **Audit code-level findings must scope to the affected paths.** AR-AP's audit claimed currency was `float` "end to end," but `canonical_records._money()` and the `reporting_views` rollups already use `Decimal`; only the workbook/report paths are float. `/project-audit`'s money/precision spot-check must report **per-path** (Decimal-correct vs float) and scope any proposed migration to the float paths only — overclaiming inflates the work and erodes trust in the finding. This pairs with the domain/MANUAL money tier (capability 4): accuracy-critical money paths are exactly where a MANUAL attestation belongs, and the audit must locate them precisely rather than sweep correct paths into the change.
