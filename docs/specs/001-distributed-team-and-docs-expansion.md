@@ -99,8 +99,12 @@ Each is verifiable by someone outside this work.
 **Doing** — six capabilities, each a module/feature added one branch at a time:
 
 1. **Collaboration** (`collaboration.md`, CB-01…CB-05 + `check_assignee.py`) —
-   assign-before-branch, one-concern-per-branch, one-linked-item-per-PR,
-   push-on-cadence, no-force-push-shared. Always-on for multi-person repos only.
+   CB-01 assign-before-branch, CB-02 one-concern-per-branch, CB-03 a PR links
+   exactly one item (checkable), CB-04 the diff matches that item (JUDGMENT),
+   CB-05 push-on-cadence. Force-push is **not** a new CB rule — it stays **C-02**
+   in `core.md`, cross-referenced here, never duplicated (a second row would let
+   the two acquire conflicting enforcement status). Always-on for multi-person
+   repos only.
 2. **Instruction-file sync** (`render_instructions.py` + `check_instruction_honesty.py`)
    — rule-module frontmatter is the single source; render to CLAUDE/AGENTS/GEMINI/Cursor
    in delimited managed blocks; `--check` fails on drift. Backbone the rest ride on.
@@ -125,7 +129,7 @@ Each is verifiable by someone outside this work.
   Claude-Code / CI mechanisms.
 - No silent auto-apply in retrofit — audit reports, human approves, then apply.
 - No silent auto-install of any companion; installs are *offered on declaration* only.
-- CB-03 (diff-vs-intent) stays JUDGMENT; mechanizing it yields false positives.
+- CB-04 (diff-matches-the-linked-item) stays JUDGMENT; mechanizing it yields false positives. CB-03 (a PR links exactly one item) is the separate, checkable half and stays LINT — distinct IDs, so neither is left ambiguous. Force-push stays C-02 (`core.md`), never a collaboration duplicate.
 
 ## The artifact ladder (capability 6, detailed)
 
@@ -246,4 +250,4 @@ The repo->plugin loop above is already live — the AP+AR audit (PR #84) surface
 
 1. **Doc relocation must repoint executable consumers, not just links** (folded into the artifact-ladder Enforce+promote above). AR-AP keeps 30 specs / 25 plans under `docs/superpowers/{specs,plans}`; a proposed move to `docs/{specs,plans}` with redirect stubs broke content-based tests that read those files (`tests/test_phase6_governance_docs.py`, `scripts/phase3_exit_readiness.py`). The canonical-doc-layout promote step owns this inventory — code and tests, not only cross-doc links.
 2. **Audit code-level findings must scope to the affected paths.** AR-AP's audit claimed currency was `float` "end to end," but `canonical_records._money()` and the `reporting_views` rollups already use `Decimal`; only the workbook/report paths are float. `/project-audit`'s money/precision spot-check must report **per-path** (Decimal-correct vs float) and scope any proposed migration to the float paths only — overclaiming inflates the work and erodes trust in the finding. This pairs with the domain/MANUAL money tier (capability 4): accuracy-critical money paths are exactly where a MANUAL attestation belongs, and the audit must locate them precisely rather than sweep correct paths into the change.
-3. **Grep is a lead, not a verdict — search the lexicon, corroborate before concluding.** A zero-result grep is not evidence of absence, and a single-term grep is not evidence of presence: the same concept and the same *symptom* wear different words across platforms (money: `amount` / `total` / `price` / `monetaryValue` / `cents` / `Decimal` / `float`; failures: "connection refused" / `ECONNREFUSED` / "tunnel error"). The audit and the code-level scanners search against a **concept-lexicon** (and a symptom-lexicon for troubleshooting), and a finding requires corroboration — read the call site, run the synonym set — before it is written as MISSING or a FINDING. This extends "evidence over recollection" and Rule 0's "a single-file search is not evidence of absence" with the lexicon dimension, and it is how CB-03's false positives are killed before they are recorded rather than by mechanizing intent.
+3. **Grep is a lead, not a verdict — search the lexicon, corroborate before concluding.** A zero-result grep is not evidence of absence, and a single-term grep is not evidence of presence: the same concept and the same *symptom* wear different words across platforms (money: `amount` / `total` / `price` / `monetaryValue` / `cents` / `Decimal` / `float`; failures: "connection refused" / `ECONNREFUSED` / "tunnel error"). The audit and the code-level scanners search against a **concept-lexicon** (and a symptom-lexicon for troubleshooting), and a finding requires corroboration — read the call site, run the synonym set — before it is written as MISSING or a FINDING. This extends "evidence over recollection" and Rule 0's "a single-file search is not evidence of absence" with the lexicon dimension, and it is how CB-04's false positives are killed before they are recorded rather than by mechanizing intent.
