@@ -111,7 +111,7 @@ Each is verifiable by someone outside this work.
 3. **Documentation + canonical doc-layout** (`documentation.md` + templates +
    `check_docs_layout.py`) — product docs, end-user how-tos, operations runbooks,
    handoff/session notes, AND the artifact-ladder layout map + enforce/promote
-   (below). Opt-in by lifespan/production status.
+   (below), AND a **doc-follows-behavior** rule — a PR that changes user-visible behavior must touch the relevant user/operator docs, with a gate that flags a behavior-changing diff leaving them untouched (from GHL-MCP PR #1133: a `/imports` chip-count change updated impl + tests but not `operator-documentation.json`). Opt-in by lifespan/production status.
 4. **Domain rulebook + MANUAL tier** (`domain.md` + a new registry tier +
    `check_attestation.py`) — each repo declares accuracy-critical / known-vuln
    paths; a MANUAL rule requires a signed human attestation in the PR when such a
