@@ -204,6 +204,43 @@ else
 fi
 rm -rf "$subdirfix"
 
+# 4. The three assertions above invoke session-context.sh DIRECTLY — that locks
+#    the script's behavior but NOT the plugin delivery that actually fires it.
+#    A reviewer on PR #40 caught the gap: move the command from SessionStart to
+#    PostToolUse in hooks/hooks.json and all three stay green, yet a subdir-
+#    launched session gets no session-START telemetry (conformance_test.sh
+#    compares only script basenames, so it misses the wrong event). Lock the
+#    event mapping itself: session-context.sh must be declared under
+#    SessionStart, and ONLY there, in the plugin manifest that closes item 2.
+sc_check=$(python3 -c "
+import json, os
+KIT = '$KIT'
+d = json.load(open(os.path.join(KIT, 'hooks/hooks.json')))
+def paths(ev):
+    out = []
+    for entry in d.get('hooks', {}).get(ev, []):
+        for h in entry.get('hooks', []):
+            p = h.get('command', '').strip().strip('\"')
+            for pre in ('\${CLAUDE_PLUGIN_ROOT}/', '\$CLAUDE_PLUGIN_ROOT/'):
+                p = p.replace(pre, '')
+            out.append(p)
+    return out
+# Exact declared path, not a substring: session-context.sh.disabled (a
+# nonexistent executable) must NOT satisfy this — PR #41 review.
+ss = [p for p in paths('SessionStart') if p == 'hooks/session-context.sh']
+# the declared executable must actually exist on disk
+exists = os.path.isfile(os.path.join(KIT, 'hooks/session-context.sh'))
+# and it must appear under NO other event
+other = [ev for ev in d.get('hooks', {}) if ev != 'SessionStart'
+         for p in paths(ev) if os.path.basename(p).startswith('session-context')]
+print('OK' if (len(ss) == 1 and exists and not other) else f'BAD ss={ss} exists={exists} other={other}')
+")
+if [ "$sc_check" = "OK" ]; then
+  echo "  PASS  hooks/hooks.json declares exactly hooks/session-context.sh (an existing file) under SessionStart and no other event"; pass=$((pass+1))
+else
+  echo "  FAIL  SessionStart wiring of session-context.sh is wrong: $sc_check — a substring, renamed, or re-mapped command would leave a subdir session with no session-start telemetry"; fail=$((fail+1))
+fi
+
 echo "settings.json hook commands survive a project directory containing a space"
 # Reviewer finding on this same PR (discussion_r3776532413): every case above
 # sets CLAUDE_PROJECT_DIR="$KIT", which never contains a space, so the section
