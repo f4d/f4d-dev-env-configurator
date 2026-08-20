@@ -202,6 +202,36 @@ never speculatively.
 - **Canonical source of truth unchanged (A2):** rule text lives in the plugin;
   rendered instruction files, CODEOWNERS, and filed docs are *derived*.
 
+## Work-tracker provider (interview-selected)
+
+The work tracker is a **provider choice**, not a fixed dependency on Notion.
+`/project-init` asks *work tracker: GitHub Issues | Linear | Notion | none*, and
+the answer is recorded in the org-profile / `.framework-state.json` behind a thin
+`work_tracker` interface. The collaboration capability's assignee gate
+(`check_assignee.py`, CB-01), `/work-intake`, and the external-systems table all
+read the selected provider rather than assuming Notion:
+
+- **GitHub Issues** — default for a code repo; the linked issue and its assignee
+  live in the same place as the PR, so CB-01 needs no extra system.
+- **Linear** — an assignee-bearing adapter behind the same interface, for teams
+  whose work lives there.
+- **Notion** — a triage **mirror**, not a standalone CB-01 provider: the Work DB
+  keeps GitHub as system-of-record, requires a GitHub issue number per row, and has
+  no assignee field (`templates/notion/WORK_DB_SCHEMA.md`), so it layers over a
+  GitHub-backed tracker rather than replacing it. ADR 002 (GitHub over Linear) stands.
+- **none** — no tracker; the assignee gate is disabled via the `SINGLE_CONTRIBUTOR`
+  setting (distinct from `SINGLE_INSTANCE`, which is deployment topology controlling
+  the statelessness gate, not contributor count).
+
+The provider interface must land **with** the assignee gate in Phase 2, so CB-01
+is provider-aware from its first commit rather than retrofitted, and so Notion is
+one selectable backend among several rather than the assumed one. (Tracked as A28.)
+
+The External systems table gains a row for the selected tracker (GitHub API,
+Linear API, or Notion MCP), each defining its credential, metering, and
+unavailable-provider fail-loud behavior; a Notion mirror is advisory, so its
+unavailability never blocks CB-01.
+
 ## External systems
 
 | System | Direction | Metered | Failure mode if unavailable |

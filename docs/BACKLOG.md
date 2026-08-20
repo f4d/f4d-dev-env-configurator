@@ -1128,6 +1128,31 @@ do-no-harm principle as a standing requirement on every capability the interview
 can turn on. Effort M — one skill (`/adopt-out` or a `/project-audit` action)
 plus the consumer-scan reused from the doc-layout work.
 
+### A28 — work-tracker backend is hard-wired to Notion; make it interview-selected · open · effort M
+
+The kit assumes Notion as the work tracker — `notion_sync.py`, the org-profile
+`hub_mode`, the Notion Work DB, and `notion-sync.yml` are all Notion-specific,
+and no interview question offers an alternative. But the tracker is a *provider
+choice*, and it becomes load-bearing the moment the collaboration capability
+(spec 001, cap 1) lands: CB-01's assignee gate — "a PR's author must be the
+linked issue's assignee" — is inherently tracker-specific. "The linked issue" is
+a GitHub issue, a Linear issue, or a Notion row depending on the backend.
+
+The fix: an interview question — **work tracker: GitHub Issues | Linear | Notion
+| none** — recorded in the org-profile / `.framework-state.json`, behind a small
+provider interface. `check_assignee.py`, `/work-intake`, and the external-systems
+table all read the selected provider instead of assuming Notion. GitHub Issues is
+the natural default for a code repo (the assignee lives in the same place as the
+PR, no extra system); Linear and Notion are adapters behind the same interface;
+`none` disables the assignee gate entirely (which lines up with the
+`SINGLE_CONTRIBUTOR` case — not `SINGLE_INSTANCE`, which is deployment topology). Notion stops being assumed —
+it becomes one selectable provider among several.
+
+Ties into Phase 2 (collaboration): the provider interface should land *with* the
+assignee gate, so CB-01 is provider-aware from its first commit rather than
+retrofitted. Effort M — one provider-selection interview question + a thin
+`work_tracker` abstraction the assignee gate and work-intake read.
+
 ## 3 — Registry debt (PROSE that should be mechanized)
 
 From `templates/rules/REGISTRY.md`. Each already carries a promote-when trigger.
