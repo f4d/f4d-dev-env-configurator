@@ -76,6 +76,22 @@ invariants, above all six capabilities:
    never auto-applied. Each adoption slice is independently safe and reversible;
    "partially adopted" is a first-class, reported state, never a broken one.
 
+**Adoption must be reversible.** Every capability the interview can turn *on*
+must be turn-off-able by a consumer-aware **adopt-out** — the symmetric inverse
+of `/project-init`. Removing an adopted thing (the A11 guard floor, an
+instruction-sync managed block, a gate in CI) is not freehand `rm`: it unwires
+or removes atomically, checks for consumers first (a test that spawns the guard,
+code that reads a rendered file) exactly as the canonical doc-layout promote step
+inventories executable/test consumers before a move, **defaults to disable over
+delete when a consumer exists** (disable ≠ delete — un-wiring a hook leaves its
+test green; deleting the file turns it red), and records the removal. The things
+we adopt are additive, but some are security controls — the A11 guard-local floor fails loud on unparseable input and blocks secret writes and force-pushes, so unwiring it REDUCES enforcement. The adopt-out classifies each removal's enforcement impact, surfaces a security-reducing removal explicitly at approval, and records what protection was dropped; the requirement
+is that backing a capability out is a first-class, audited operation, not manual
+surgery. Tracked as A26. (Live trigger: GHL-MCP's 2026-08-17 body-scan guard
+hardening self-blocked every edit to the guard because it grew no exemption for
+its own source/test; the fix was a target-scoped self-exemption, and the question
+it raised — "can we back this out safely?" — is what this requirement answers.)
+
 ## Success looks like
 
 Each is verifiable by someone outside this work.
@@ -223,6 +239,15 @@ a dangling declaration.
 - *Resolved 2026-08-17:* **MANUAL attestation** → a committed `attestations/` file is the record for regulated / accuracy-critical paths (durable audit trail); a PR-body `## Attestation` section is accepted for lightweight cases. The ADR fixes the file format and which paths require the committed file (per-path vs per-PR).
 - *Resolved 2026-08-17:* **Instruction-sync defaults** → render `CLAUDE.md`, `.cursor/rules/*`, and `AGENTS.md` by default; `GEMINI.md` is interview-gated (rendered only when the team declares Gemini).
 - *Resolved 2026-08-17:* **`check_docs_layout.py`** → proposes the move in the audit, then **applies it on approval** — performing the file move AND repointing code/test consumers in one step, never a bare stub.
+
+- Adopt-out shape: its own skill (`/adopt-out`) or an action inside
+  `/project-audit`? And where a removal is recorded (a `docs/decisions` /
+  `docs/log.md` entry vs a `.framework-state.json` field). Leaning: a
+  `/project-audit` action that reuses the doc-layout consumer-scan and records the opt-out as a machine-readable marker in
+  `.framework-state.json` — not `docs/log.md` alone: the audit reads state, not
+  the log, and `skills/project-audit/SKILL.md` line 77 would otherwise re-flag the
+  unwired guard as a finding and recommend restoring what was just disabled.
+  `/project-audit` must honor that marker; a `docs/log.md` note accompanies it. (A26)
 
 ## Decisions this depends on
 

@@ -1097,6 +1097,37 @@ against this repo.
 
 ---
 
+### A26 — no reversible adopt-out; removing an adopted capability is hand-work, not a kit operation · open · effort M
+
+`/project-init` adopts capabilities into a repo and `upgrade.py` reconciles new
+versions, but there is **no mirror operation that removes one**. Turning a
+capability back off — the A11 guard floor, an instruction-sync managed block, a
+gate wired into CI — is manual surgery today, and it has a footgun: the artifact
+and its *consumers* come apart. GHL-MCP's `scripts/lib/guardLocal.test.mjs`
+spawns `.claude/hooks/guard-local.sh`; **deleting** the guard file turns that
+green test red, while **un-wiring** it (removing the `PreToolUse` block from
+`settings.json`) leaves the file and the test intact. Disable ≠ delete, and
+nothing in the kit encodes that.
+
+Surfaced live 2026-08-20: GHL-MCP's guard was hardened on 2026-08-17 to scan
+Write/Edit *body* content (a PEM pasted into `notes.txt` must block) but grew no
+exemption for its own source or its test, so every agent edit to the guard was
+self-blocked — and the first question that raised was "can we back this out
+safely?" The answer is yes (the floor is additive and fail-open, so removal is
+non-destructive by construction), but the kit had no *operation* to do it
+cleanly, consumer-aware, and recorded.
+
+The gap, precisely: an **adopt-out** that is the symmetric inverse of
+`/project-init` — unwire-or-remove atomically, check for consumers the way the
+canonical doc-layout promote step checks executable/test consumers before a move
+(same discipline, cross-ref A2 + spec 001 do-no-harm), default to *disable* over
+*delete* when a consumer exists, and record the removal. Not a safety hole (the
+things we adopt are additive and fail-open); the missing piece is a first-class,
+reversible, audited operation instead of freehand `rm`. Folded into spec 001's
+do-no-harm principle as a standing requirement on every capability the interview
+can turn on. Effort M — one skill (`/adopt-out` or a `/project-audit` action)
+plus the consumer-scan reused from the doc-layout work.
+
 ## 3 — Registry debt (PROSE that should be mechanized)
 
 From `templates/rules/REGISTRY.md`. Each already carries a promote-when trigger.
