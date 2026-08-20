@@ -1,3 +1,7 @@
+---
+id: keysafety
+always_apply: false
+---
 # Key Safety
 
 Non-negotiable. Enforced by hook, restated here for clarity.

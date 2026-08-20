@@ -60,7 +60,7 @@ jobs:
       - name: Run all six harnesses
         run: |
           fail=0
-          for t in hooks render_registry gate_trio statelessness conformance companions; do
+          for t in hooks render_registry render_instructions gate_trio statelessness conformance companions; do
             echo "::group::${t}_test.sh"
             bash "tests/${t}_test.sh" || fail=1
             echo "::endgroup::"
@@ -122,6 +122,7 @@ jobs:
           run check_log_hygiene.py     # O-05
           run check_raw_sql.py         # D-06
           run check_pure_imports.py    # S-07
+          run check_instruction_honesty.py  # C-10
           exit $fail
 
 # Registry resolution (A9 — IDs are permanent, every reference must resolve) is

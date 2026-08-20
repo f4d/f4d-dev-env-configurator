@@ -1,3 +1,7 @@
+---
+id: data-integration
+always_apply: false
+---
 # Data Integration
 
 The core discipline of this project: many sources, one truth.

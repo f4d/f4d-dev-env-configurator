@@ -1,3 +1,7 @@
+---
+id: dataprotection
+always_apply: false
+---
 # Data Protection
 
 - Maintain a PII inventory in the README: which tables and fields hold personal data.

@@ -1,3 +1,7 @@
+---
+id: observability
+always_apply: false
+---
 # Observability
 
 - Structured JSON logs. No `print`, no bare `console.log` outside local scripts.

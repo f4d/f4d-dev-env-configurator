@@ -1,3 +1,7 @@
+---
+id: typescript
+always_apply: false
+---
 # TypeScript
 
 - `pnpm` only, version pinned via `packageManager` + corepack. Never `npm` or `yarn` in this repo.

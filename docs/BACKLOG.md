@@ -19,7 +19,7 @@
 | Skills | 15 | repo-builder, org-profile, project-init, project-audit, framework-upgrade, promote-rule, notion-sync, new-module, new-integration, contract-first, work-intake, write-spec, decision-record, ship-it, retro |
 | Rules modules | 22 | incl. REGISTRY.md with **77** rules (G-07 added) |
 | Hooks | 7 | guard, rule-zero, session-context, done-check, verify-record, format, _parse — **now actually armed in this repo**, see below |
-| Gate scripts | 13 | fixtures, contract-pin, guess-lists, rollback, statelessness, commits, raw-sql, pure-imports, catch-empty, log-hygiene, test-count, companions, **agents** |
+| Gate scripts | 14 | fixtures, contract-pin, guess-lists, rollback, statelessness, commits, raw-sql, pure-imports, catch-empty, log-hygiene, test-count, companions, agents, **instruction-honesty** |
 | Agents | 4 | schema-reviewer, integration-auditor, contract-drift-checker, verify-runner — selection is now derived from `decided_modules`, not all-four-always (A20) |
 | Verify command | 1 | `scripts/verify.sh` — the kit had none until 2026-08-12, while `/project-audit` demanded one of every repo it audits |
 | Process docs | 9 | LIFECYCLE, DEFINITION, CADENCE, ENFORCEMENT, TEST_STRATEGY, + templates |
