@@ -32,8 +32,14 @@ it is built.
 We add a `MANUAL` status tier: a rule enforced by the **presence of a signed
 human attestation, committed to the repo, naming the path and the basis for
 sign-off**, required whenever a diff touches a path the repo has declared
-MANUAL. `check_attestation.py` is the gate; the attestation lives in a committed
-`attestations/` file, not the PR body.
+MANUAL. `check_attestation.py` is the gate. **The attestation must be added or updated in
+the same diff that changes the MANUAL path** — it carries a change identifier (the
+path plus the commit/PR it attests), so a stale prior attestation cannot satisfy a
+later change to the same path. Storage is **tiered**: a committed `attestations/`
+file for paths the repo declares audit-critical (regulated, needs a durable trail),
+and a PR-body `## Attestation` for lightweight MANUAL paths — the lightweight case
+spec 001 already accepts. The repo's MANUAL declaration says which tier each path
+uses.
 
 ## Alternatives considered
 
@@ -41,7 +47,7 @@ MANUAL. `check_attestation.py` is the gate; the attestation lives in a committed
 |---|---|
 | Reuse `JUDGMENT` | `JUDGMENT` means "correctly not enforced." Overloading it to sometimes-require-a-signoff destroys the one distinction the registry exists to keep: enforced vs not. A reader could no longer trust that `JUDGMENT` means advisory. |
 | A `HOOK` or `TEST` | The defining property of these paths is that **no automated check can prove correctness**. A hook/test here is theatre — it asserts something weaker than the real rule and licenses "green" on a wrong change. |
-| PR-body attestation | Cheapest, but the PR body is not in the tree: it is not auditable after a squash-merge, cannot be diffed, and is invisible to a later reviewer reading the repo. Regulated paths need a durable record co-located with the code. |
+| PR-body attestation *as the only tier* | The PR body is not in the tree — not auditable after a squash-merge, not diffable, invisible to a later reader. So it is **retained for lightweight paths but insufficient for audit-critical ones**, which need a durable committed record; the tier is per declared path (see Decision). |
 | Required GitHub reviewer / CODEOWNERS | GitHub-only, not offline-validatable, and leaves no per-path record of *what was attested* — only that someone clicked approve. Ownership review is a separate, complementary control (capability 5), not this one. |
 | Nothing — leave it `PROSE` | `PROSE` on a mechanisable rule is tracked debt with a promote-when trigger; here there is nothing to promote *to*, so it would be permanent unenforced debt on exactly the paths that most need a gate. |
 
