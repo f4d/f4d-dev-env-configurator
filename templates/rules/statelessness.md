@@ -1,3 +1,7 @@
+---
+id: statelessness
+always_apply: false
+---
 # Statelessness
 
 The premise: **any instance can serve any request, and any instance can die at any

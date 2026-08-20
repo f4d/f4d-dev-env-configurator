@@ -1,3 +1,7 @@
+---
+id: blockchain
+always_apply: false
+---
 # Blockchain
 
 - Foundry for contracts. `forge fmt --check`, `forge test`, and `forge snapshot --check` are part of verify.

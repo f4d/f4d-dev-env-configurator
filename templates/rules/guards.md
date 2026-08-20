@@ -1,3 +1,7 @@
+---
+id: guards
+always_apply: true
+---
 # Guards, Not Memos
 
 A rule written in prose is advisory and will eventually be ignored. A rule

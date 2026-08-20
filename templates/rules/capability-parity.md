@@ -1,3 +1,7 @@
+---
+id: capability-parity
+always_apply: false
+---
 # Capability Parity
 
 For any project where a UI, an API, and an external contract must stay aligned.

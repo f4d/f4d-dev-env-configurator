@@ -1,3 +1,7 @@
+---
+id: determinism
+always_apply: false
+---
 # Determinism & Content Addressing
 
 - Canonicalize before hashing. JCS (RFC 8785). Python: `jcs`. TS: `canonicalize`.

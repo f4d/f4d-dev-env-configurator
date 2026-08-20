@@ -1,3 +1,7 @@
+---
+id: api
+always_apply: false
+---
 # API
 
 - Versioned from day one: all routes under `/api/v1/`.

@@ -1,3 +1,7 @@
+---
+id: frontend
+always_apply: false
+---
 # Frontend
 
 - Performance budgets are hard limits, checked in CI: LCP < 2.0s, TBT < 200ms, initial JS < 150KB gzipped.

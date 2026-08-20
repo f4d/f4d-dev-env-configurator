@@ -1,3 +1,7 @@
+---
+id: core
+always_apply: true
+---
 # Core
 
 ## Git

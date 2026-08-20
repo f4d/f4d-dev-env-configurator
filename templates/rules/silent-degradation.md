@@ -1,3 +1,7 @@
+---
+id: silent-degradation
+always_apply: true
+---
 # Silent Degradation
 
 The failure class that survives review: something goes wrong and the output still

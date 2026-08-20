@@ -1,3 +1,7 @@
+---
+id: python
+always_apply: false
+---
 # Python
 
 - Run everything through `uv`: `uv run pytest`, `uv run ruff check .`, `uv run mypy .`. Never bare `python` or `pip`.

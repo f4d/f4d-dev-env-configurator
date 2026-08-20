@@ -1,3 +1,7 @@
+---
+id: storage
+always_apply: false
+---
 # Object Storage
 
 Configured per project. Do not assume this policy applies elsewhere.

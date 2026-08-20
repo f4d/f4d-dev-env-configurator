@@ -1,3 +1,7 @@
+---
+id: money
+always_apply: false
+---
 # Money
 
 - `Decimal` in Python, integer minor units or `Decimal` in TS. `float` is banned in any code path touching a currency amount.

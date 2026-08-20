@@ -1,3 +1,7 @@
+---
+id: contracts
+always_apply: false
+---
 # Contracts (multi-repo)
 
 - The contract repo is the source of truth for every cross-repo payload, endpoint, and event.

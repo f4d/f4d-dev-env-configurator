@@ -1,3 +1,7 @@
+---
+id: database
+always_apply: false
+---
 # Database
 
 - Schema is the source of truth. Generated types are never hand-edited.
