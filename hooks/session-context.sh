@@ -19,7 +19,14 @@ set -uo pipefail
 hook_opted_in || exit 0
 
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-cwd=$(pwd)
+# `pwd -P`, not the logical `pwd`: git reports a physical toplevel, so a session
+# entered through a symlink (macOS /var -> /private/var, or a symlinked repo
+# path) yields two different spellings of the same directory. Every use of $cwd
+# below compares against or strips $root — the root/subdir tag on line 59 and the
+# relative-path field on line 60 — so a spelling mismatch silently mis-tags a
+# root session as 'subdir' and emits the whole absolute path as its "relative"
+# component. Same directory, two names, both checks wrong.
+cwd=$(pwd -P)
 
 echo "=== PROJECT RULES (injected — cwd is $cwd) ==="
 
